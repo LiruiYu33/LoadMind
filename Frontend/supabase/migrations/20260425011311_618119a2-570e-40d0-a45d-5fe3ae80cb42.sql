@@ -1,0 +1,4 @@
+ALTER TABLE public.vehicles
+  ADD COLUMN IF NOT EXISTS trailers jsonb NOT NULL DEFAULT '[]'::jsonb,
+  ALTER COLUMN year SET DEFAULT EXTRACT(YEAR FROM now())::int,
+  ALTER COLUMN capacity_t SET DEFAULT 0;
