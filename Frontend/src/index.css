@@ -1,0 +1,180 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* LoadMind — Kinetic Architect design system.
+   All colors HSL. Industrial Deep palette. Tonal layering, no 1px section borders. */
+
+@layer base {
+  :root {
+    /* Surface scale (Level 0 → Level 3) */
+    --surface: 240 14% 98%;                    /* #f9f9fc */
+    --surface-container-low: 240 10% 95%;      /* warm grey */
+    --surface-container: 240 8% 92%;
+    --surface-container-high: 240 6% 88%;
+    --surface-container-highest: 240 6% 84%;
+    --surface-container-lowest: 0 0% 100%;     /* pure white lift */
+
+    --background: 240 14% 98%;
+    --foreground: 210 11% 11%;                 /* on-surface #1a1c1e */
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 11% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 11% 11%;
+
+    /* Primary — Industrial Navy */
+    --primary: 217 100% 12%;                   /* #001b3d primary_container */
+    --primary-foreground: 240 14% 98%;
+    --primary-glow: 217 24% 56%;               /* #6f84ac on_primary_container, used as gradient end */
+
+    /* Secondary — slate steel */
+    --secondary: 210 4% 19%;                   /* #2f3133 inverse_surface */
+    --secondary-foreground: 240 14% 98%;
+
+    /* Muted */
+    --muted: 240 8% 92%;
+    --muted-foreground: 215 11% 38%;
+
+    /* Accent — soft navy tint */
+    --accent: 217 30% 92%;
+    --accent-foreground: 217 100% 12%;
+
+    /* Action Green — Profit signal (use sparingly) */
+    --action: 132 100% 70%;                    /* #69ff87 tertiary_fixed */
+    --action-foreground: 145 100% 10%;
+    --action-deep: 145 70% 30%;
+
+    /* Critical */
+    --destructive: 0 76% 42%;                  /* #ba1a1a */
+    --destructive-foreground: 0 0% 100%;
+
+    /* Outline — never used at full opacity */
+    --border: 220 9% 86%;
+    --input: 220 9% 86%;
+    --ring: 217 100% 12%;
+    --outline-variant: 220 9% 75%;
+
+    --radius: 0.375rem;                        /* md base */
+
+    /* Signature gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(217 100% 12%) 0%, hsl(217 24% 36%) 100%);
+    --gradient-action: linear-gradient(135deg, hsl(132 100% 70%) 0%, hsl(150 90% 60%) 100%);
+    --gradient-dark-card: linear-gradient(160deg, hsl(217 100% 10%) 0%, hsl(210 4% 15%) 100%);
+
+    /* Ghost shadow — soft hum of light */
+    --shadow-ghost: 0 12px 32px hsl(210 11% 11% / 0.04);
+    --shadow-lift: 0 1px 2px hsl(210 11% 11% / 0.04), 0 8px 24px hsl(210 11% 11% / 0.06);
+    --shadow-glass: 0 8px 32px hsl(217 100% 12% / 0.08);
+
+    /* Sidebar */
+    --sidebar-background: 240 10% 95%;
+    --sidebar-foreground: 215 11% 30%;
+    --sidebar-primary: 217 100% 12%;
+    --sidebar-primary-foreground: 240 14% 98%;
+    --sidebar-accent: 240 8% 92%;
+    --sidebar-accent-foreground: 217 100% 12%;
+    --sidebar-border: 240 6% 88%;
+    --sidebar-ring: 217 100% 12%;
+  }
+
+  .dark {
+    --surface: 217 100% 6%;
+    --surface-container-low: 217 60% 9%;
+    --surface-container: 217 40% 12%;
+    --surface-container-high: 217 30% 16%;
+    --surface-container-highest: 217 25% 20%;
+    --surface-container-lowest: 217 100% 8%;
+
+    --background: 217 100% 6%;
+    --foreground: 240 14% 98%;
+    --card: 217 60% 9%;
+    --card-foreground: 240 14% 98%;
+    --popover: 217 60% 9%;
+    --popover-foreground: 240 14% 98%;
+    --primary: 217 24% 56%;
+    --primary-foreground: 217 100% 6%;
+    --primary-glow: 240 14% 98%;
+    --secondary: 217 30% 16%;
+    --secondary-foreground: 240 14% 98%;
+    --muted: 217 30% 16%;
+    --muted-foreground: 215 15% 65%;
+    --accent: 217 30% 20%;
+    --accent-foreground: 240 14% 98%;
+    --border: 217 30% 18%;
+    --input: 217 30% 18%;
+    --ring: 217 24% 56%;
+    --sidebar-background: 217 80% 7%;
+    --sidebar-foreground: 215 15% 70%;
+    --sidebar-primary: 217 24% 56%;
+    --sidebar-primary-foreground: 217 100% 6%;
+    --sidebar-accent: 217 40% 12%;
+    --sidebar-accent-foreground: 240 14% 98%;
+    --sidebar-border: 217 40% 14%;
+  }
+}
+
+@layer base {
+  * { @apply border-border; }
+  html, body { @apply bg-background text-foreground; font-family: 'Inter', system-ui, sans-serif; }
+  h1, h2, h3, h4, h5, .font-display { font-family: 'Manrope', system-ui, sans-serif; letter-spacing: -0.01em; }
+  .font-mono-data { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+}
+
+@layer components {
+  .label-eyebrow {
+    @apply text-[0.7rem] font-semibold uppercase text-muted-foreground;
+    letter-spacing: 0.08em;
+  }
+  .surface-1 { background-color: hsl(var(--surface-container-low)); }
+  .surface-2 { background-color: hsl(var(--surface-container-lowest)); }
+  .surface-3 { background-color: hsl(var(--surface-container-high)); }
+  .surface-deep { background: var(--gradient-dark-card); color: hsl(var(--primary-foreground)); }
+
+  .ghost-shadow { box-shadow: var(--shadow-ghost); }
+  .lift-shadow { box-shadow: var(--shadow-lift); }
+
+  .glass {
+    background-color: hsl(var(--surface-container-lowest) / 0.82);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    box-shadow: var(--shadow-glass);
+    border: 1px solid hsl(var(--outline-variant) / 0.15);
+  }
+  .glass-dark {
+    background-color: hsl(217 100% 8% / 0.78);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    color: hsl(var(--primary-foreground));
+    border: 1px solid hsl(var(--primary-glow) / 0.15);
+  }
+
+  .btn-primary-gradient {
+    background: var(--gradient-primary);
+    color: hsl(var(--primary-foreground));
+    transition: filter 0.2s ease, transform 0.15s ease;
+  }
+  .btn-primary-gradient:hover { filter: brightness(1.15); }
+  .btn-primary-gradient:active { transform: translateY(1px); }
+
+  .btn-action {
+    background: var(--gradient-action);
+    color: hsl(var(--action-foreground));
+    transition: filter 0.2s ease;
+  }
+  .btn-action:hover { filter: brightness(1.05); }
+
+  .pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+  .pill-on-time { background: hsl(var(--action) / 0.18); color: hsl(var(--action-deep)); }
+  .pill-delayed { background: hsl(var(--destructive) / 0.12); color: hsl(var(--destructive)); }
+  .pill-idle    { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+  .pill-active  { background: hsl(var(--primary) / 0.1); color: hsl(var(--primary)); }
+}
+
+/* Leaflet container — let it fill */
+.leaflet-container { background: hsl(217 100% 6%); font-family: 'Inter', sans-serif; }
+.leaflet-control-attribution { background: transparent !important; color: hsl(var(--muted-foreground)) !important; font-size: 10px; }
+.leaflet-control-attribution a { color: hsl(var(--primary-glow)) !important; }
