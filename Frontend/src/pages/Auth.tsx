@@ -43,22 +43,22 @@ const Auth = () => {
       .from("user_roles")
       .select("role")
       .eq("user_id", uid)
+      .eq("role", selectedRole)
       .maybeSingle();
 
     if (roleFetchError) throw roleFetchError;
 
-    const resolvedRole = (existingRole?.role as AppRole | undefined) ?? selectedRole;
-
     if (!existingRole) {
       const { error: roleInsertError } = await supabase
         .from("user_roles")
-        .insert({ user_id: uid, role: resolvedRole });
+        .insert({ user_id: uid, role: selectedRole });
 
       if (roleInsertError) throw roleInsertError;
     }
 
-    await refreshRole();
-    return resolvedRole;
+    window.localStorage.setItem(`loadmind.activeRole.${uid}`, selectedRole);
+    await refreshRole(selectedRole, uid);
+    return selectedRole;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

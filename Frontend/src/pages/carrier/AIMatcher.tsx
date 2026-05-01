@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { assignLoad, listOpenLoads } from "@/lib/loads-api";
 import { CheckCircle2, ArrowRight, Filter, Search, MapPin, Gauge, Truck, ChevronDown } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { LoadRouteMap } from "@/components/LoadRouteMap";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -144,6 +145,8 @@ export default function AIMatcher() {
                   value={formatDateTime(l.dropoff_time)}
                 />
               </div>
+
+              <LoadRouteMap origin={l.origin} destination={l.destination} />
 
               <div className="flex flex-wrap gap-2 pt-1">
                 <DropdownMenu>

@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Truck, Edit3, X, Loader2, Trash2 } from "lucide-react";
+import { Plus, Truck, Edit3, X, Loader2, Trash2, MapPin } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { confirmLoadDelivery, confirmLoadPickup } from "@/lib/loads-api";
+import { LocationPickerDialog } from "@/components/LocationPickerDialog";
 import { z } from "zod";
 import {
   Dialog,
@@ -303,7 +304,7 @@ const vehicleSchema = z.object({
   driver_name: z.string().trim().min(2, "Driver name is required").max(80, "Max 80 chars"),
   model: z.string().trim().min(2, "Model is required").max(80, "Max 80 chars"),
   fuel_efficiency: z.coerce.number().positive("Must be > 0").max(100, "Max 100 km/L"),
-  location: z.string().trim().max(80, "Max 80 chars").optional(),
+  location: z.string().trim().max(240, "Max 240 chars").optional(),
   preferred_routes: z.string().trim().max(200, "Max 200 chars").optional(),
   trailers: z.array(trailerSchema).min(1, "Add at least 1 trailer").max(2, "Max 2 trailers"),
 });
@@ -327,6 +328,7 @@ function RegisterVehicleDialog({
   const isEdit = !!vehicle;
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [locationPickerOpen, setLocationPickerOpen] = useState(false);
   const [form, setForm] = useState({
     unit_id: "",
     driver_name: "",
@@ -534,9 +536,25 @@ function RegisterVehicleDialog({
               value={form.location}
               onChange={(v) => setForm({ ...form, location: v })}
               error={errors.location}
-              maxLength={80}
+              maxLength={240}
+              action={
+                <button
+                  type="button"
+                  onClick={() => setLocationPickerOpen(true)}
+                  className="h-7 px-2.5 rounded-md surface-3 text-xs font-semibold flex items-center gap-1.5 hover:lift-shadow"
+                >
+                  <MapPin className="h-3.5 w-3.5" /> Map
+                </button>
+              }
             />
           </div>
+
+          <LocationPickerDialog
+            open={locationPickerOpen}
+            onOpenChange={setLocationPickerOpen}
+            value={form.location}
+            onConfirm={(location) => setForm((current) => ({ ...current, location }))}
+          />
 
           <Field
             label="Preferred Routes"
@@ -654,6 +672,7 @@ function Field({
   placeholder,
   hint,
   maxLength,
+  action,
 }: {
   label: string;
   value: string;
@@ -663,10 +682,14 @@ function Field({
   placeholder?: string;
   hint?: string;
   maxLength?: number;
+  action?: ReactNode;
 }) {
   return (
     <div className="space-y-1.5">
-      <label className="label-eyebrow block">{label}</label>
+      <div className="flex items-center justify-between gap-2">
+        <label className="label-eyebrow block">{label}</label>
+        {action}
+      </div>
       <input
         type={type}
         value={value}
