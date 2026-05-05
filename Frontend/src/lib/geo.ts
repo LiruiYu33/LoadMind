@@ -3,6 +3,12 @@ export type Coordinates = {
   lng: number;
 };
 
+export type AddressSuggestion = {
+  id: string;
+  label: string;
+  coords: Coordinates;
+};
+
 export const AUSTRALIA_CENTER: Coordinates = { lat: -25.2744, lng: 133.7751 };
 export const MELBOURNE_CENTER: Coordinates = { lat: -37.8136, lng: 144.9631 };
 
@@ -46,6 +52,7 @@ const KNOWN_LOCATIONS: Record<string, Coordinates> = {
 };
 
 const geocodeCache = new Map<string, Promise<Coordinates | null>>();
+const suggestionCache = new Map<string, Promise<AddressSuggestion[]>>();
 
 export function formatLatLng(coords: Coordinates, digits = 5) {
   return `${coords.lat.toFixed(digits)}, ${coords.lng.toFixed(digits)}`;
@@ -100,6 +107,18 @@ export async function reverseGeocodeLocation(coords: Coordinates): Promise<strin
   } catch {
     return "Selected location";
   }
+}
+
+export async function searchAddressSuggestions(value: string): Promise<AddressSuggestion[]> {
+  const raw = value.trim();
+  if (raw.length < 3) return [];
+
+  const key = normalizeLocation(raw);
+  if (suggestionCache.has(key)) return suggestionCache.get(key)!;
+
+  const promise = searchAddressSuggestionsRemote(raw);
+  suggestionCache.set(key, promise);
+  return promise;
 }
 
 type JsonRecord = Record<string, unknown>;
@@ -178,5 +197,46 @@ async function geocodeLocationRemote(value: string): Promise<Coordinates | null>
     return { lat, lng };
   } catch {
     return null;
+  }
+}
+
+async function searchAddressSuggestionsRemote(value: string): Promise<AddressSuggestion[]> {
+  try {
+    const url = new URL("https://nominatim.openstreetmap.org/search");
+    url.searchParams.set("format", "jsonv2");
+    url.searchParams.set("addressdetails", "1");
+    url.searchParams.set("limit", "5");
+    url.searchParams.set("countrycodes", "au");
+    url.searchParams.set("q", `${value}, Australia`);
+
+    const response = await fetch(url.toString(), {
+      headers: { Accept: "application/json", "Accept-Language": "en-AU,en;q=0.9" },
+    });
+    if (!response.ok) return [];
+
+    const data = await response.json();
+    if (!Array.isArray(data)) return [];
+
+    return data
+      .map((entry) => {
+        const record = asRecord(entry);
+        const lat = Number(record.lat);
+        const lng = Number(record.lon);
+        const label = buildDetailedAddress(record);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng) || !label) return null;
+
+        return {
+          id: [
+            getString(record, "osm_type"),
+            getString(record, "osm_id"),
+            label,
+          ].filter(Boolean).join("-"),
+          label,
+          coords: { lat, lng },
+        };
+      })
+      .filter((item): item is AddressSuggestion => Boolean(item));
+  } catch {
+    return [];
   }
 }
