@@ -5,6 +5,7 @@ import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { confirmLoadDelivery, confirmLoadPickup } from "@/lib/loads-api";
 import { LocationPickerDialog } from "@/components/LocationPickerDialog";
+import { AddressAutocompleteInput } from "@/components/AddressAutocompleteInput";
 import { z } from "zod";
 import {
   Dialog,
@@ -110,10 +111,10 @@ export default function FleetManagement() {
       }
       refreshAssignedLoads();
       refresh();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: "Could not update lifecycle",
-        description: err?.message ?? "Please try again.",
+        description: err instanceof Error ? err.message : "Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -546,6 +547,7 @@ function RegisterVehicleDialog({
                   <MapPin className="h-3.5 w-3.5" /> Map
                 </button>
               }
+              addressAutocomplete
             />
           </div>
 
@@ -673,6 +675,7 @@ function Field({
   hint,
   maxLength,
   action,
+  addressAutocomplete = false,
 }: {
   label: string;
   value: string;
@@ -683,6 +686,7 @@ function Field({
   hint?: string;
   maxLength?: number;
   action?: ReactNode;
+  addressAutocomplete?: boolean;
 }) {
   return (
     <div className="space-y-1.5">
@@ -690,16 +694,28 @@ function Field({
         <label className="label-eyebrow block">{label}</label>
         {action}
       </div>
-      <input
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        maxLength={maxLength}
-        onChange={(e) => onChange(e.target.value)}
-        className={`w-full h-10 px-3 rounded-md surface-3 text-sm outline-none ring-1 ring-transparent focus:ring-primary transition ${
-          error ? "ring-destructive focus:ring-destructive" : ""
-        }`}
-      />
+      {addressAutocomplete ? (
+        <AddressAutocompleteInput
+          value={value}
+          placeholder={placeholder}
+          maxLength={maxLength}
+          onChange={onChange}
+          className={`w-full h-10 px-3 rounded-md surface-3 text-sm outline-none ring-1 ring-transparent focus:ring-primary transition ${
+            error ? "ring-destructive focus:ring-destructive" : ""
+          }`}
+        />
+      ) : (
+        <input
+          type={type}
+          value={value}
+          placeholder={placeholder}
+          maxLength={maxLength}
+          onChange={(e) => onChange(e.target.value)}
+          className={`w-full h-10 px-3 rounded-md surface-3 text-sm outline-none ring-1 ring-transparent focus:ring-primary transition ${
+            error ? "ring-destructive focus:ring-destructive" : ""
+          }`}
+        />
+      )}
       {error ? (
         <p className="text-xs text-destructive">{error}</p>
       ) : hint ? (

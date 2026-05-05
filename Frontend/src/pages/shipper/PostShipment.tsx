@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { createLoad } from "@/lib/loads-api";
 import { LocationPickerDialog } from "@/components/LocationPickerDialog";
+import { AddressAutocompleteInput } from "@/components/AddressAutocompleteInput";
 import { Package, MapPin, FileImage, Upload, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -68,8 +69,12 @@ export default function PostShipment() {
       });
       toast({ title: "Shipment posted", description: "Your load is now live in the carrier marketplace." });
       nav("/shipper");
-    } catch (err: any) {
-      toast({ title: "Could not post", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({
+        title: "Could not post",
+        description: err instanceof Error ? err.message : "Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setBusy(false);
     }
@@ -125,7 +130,14 @@ export default function PostShipment() {
                 </button>
               }
             >
-              <input required value={form.origin} onChange={set("origin")} placeholder="Melbourne, VIC" maxLength={240} className="loadmind-input" />
+              <AddressAutocompleteInput
+                required
+                value={form.origin}
+                onChange={(value) => setValue("origin", value)}
+                placeholder="Melbourne, VIC"
+                maxLength={240}
+                className="loadmind-input"
+              />
             </Field>
             <Field
               label="Delivery Location"
@@ -140,7 +152,14 @@ export default function PostShipment() {
                 </button>
               }
             >
-              <input required value={form.destination} onChange={set("destination")} placeholder="Sydney, NSW" maxLength={240} className="loadmind-input" />
+              <AddressAutocompleteInput
+                required
+                value={form.destination}
+                onChange={(value) => setValue("destination", value)}
+                placeholder="Sydney, NSW"
+                maxLength={240}
+                className="loadmind-input"
+              />
             </Field>
             <Field label="Pickup Time" required>
               <input required type="datetime-local" value={form.pickupTime} onChange={set("pickupTime")} className="loadmind-input" />
@@ -200,7 +219,7 @@ export default function PostShipment() {
   );
 }
 
-function Section({ number, icon: Icon, title, children }: { number: string; icon: any; title: string; children: React.ReactNode }) {
+function Section({ number, icon: Icon, title, children }: { number: string; icon: React.ElementType; title: string; children: React.ReactNode }) {
   return (
     <section className="surface-2 rounded-xl ghost-shadow p-6">
       <div className="flex items-center gap-3 mb-5">
