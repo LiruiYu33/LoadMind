@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { createLoad } from "@/lib/loads-api";
+import { LocationPickerDialog } from "@/components/LocationPickerDialog";
 import { Package, MapPin, FileImage, Upload, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -9,6 +10,7 @@ export default function PostShipment() {
   const { user } = useAuth();
   const nav = useNavigate();
   const [busy, setBusy] = useState(false);
+  const [locationPicker, setLocationPicker] = useState<"origin" | "destination" | null>(null);
   const [form, setForm] = useState({
     cargo: "",
     category: "Dry Goods",
@@ -24,6 +26,10 @@ export default function PostShipment() {
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const setValue = (k: keyof typeof form, value: string) => {
+    setForm((f) => ({ ...f, [k]: value }));
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -106,11 +112,35 @@ export default function PostShipment() {
         {/* 2 — Route */}
         <Section number="02" icon={MapPin} title="Route Information">
           <div className="grid sm:grid-cols-2 gap-4">
-            <Field label="Pickup Location" required>
-              <input required value={form.origin} onChange={set("origin")} placeholder="Melbourne, VIC" className="loadmind-input" />
+            <Field
+              label="Pickup Location"
+              required
+              action={
+                <button
+                  type="button"
+                  onClick={() => setLocationPicker("origin")}
+                  className="h-7 px-2.5 rounded-md surface-3 text-xs font-semibold flex items-center gap-1.5 hover:lift-shadow"
+                >
+                  <MapPin className="h-3.5 w-3.5" /> Map
+                </button>
+              }
+            >
+              <input required value={form.origin} onChange={set("origin")} placeholder="Melbourne, VIC" maxLength={240} className="loadmind-input" />
             </Field>
-            <Field label="Delivery Location" required>
-              <input required value={form.destination} onChange={set("destination")} placeholder="Sydney, NSW" className="loadmind-input" />
+            <Field
+              label="Delivery Location"
+              required
+              action={
+                <button
+                  type="button"
+                  onClick={() => setLocationPicker("destination")}
+                  className="h-7 px-2.5 rounded-md surface-3 text-xs font-semibold flex items-center gap-1.5 hover:lift-shadow"
+                >
+                  <MapPin className="h-3.5 w-3.5" /> Map
+                </button>
+              }
+            >
+              <input required value={form.destination} onChange={set("destination")} placeholder="Sydney, NSW" maxLength={240} className="loadmind-input" />
             </Field>
             <Field label="Pickup Time" required>
               <input required type="datetime-local" value={form.pickupTime} onChange={set("pickupTime")} className="loadmind-input" />
@@ -119,6 +149,25 @@ export default function PostShipment() {
               <input required type="datetime-local" value={form.dropoffTime} onChange={set("dropoffTime")} min={form.pickupTime || undefined} className="loadmind-input" />
             </Field>
           </div>
+
+          <LocationPickerDialog
+            open={locationPicker === "origin"}
+            onOpenChange={(open) => !open && setLocationPicker(null)}
+            value={form.origin}
+            onConfirm={(location) => {
+              setValue("origin", location);
+              setLocationPicker(null);
+            }}
+          />
+          <LocationPickerDialog
+            open={locationPicker === "destination"}
+            onOpenChange={(open) => !open && setLocationPicker(null)}
+            value={form.destination}
+            onConfirm={(location) => {
+              setValue("destination", location);
+              setLocationPicker(null);
+            }}
+          />
         </Section>
 
         {/* 3 — Documentation */}
@@ -166,12 +215,24 @@ function Section({ number, icon: Icon, title, children }: { number: string; icon
   );
 }
 
-function Field({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
+function Field({
+  label,
+  children,
+  required,
+  action,
+}: {
+  label: string;
+  children: React.ReactNode;
+  required?: boolean;
+  action?: React.ReactNode;
+}) {
   return (
-    <label className="block">
-      <div className="label-eyebrow mb-2">{label}{required && <span className="text-destructive ml-1">*</span>}</div>
+    <div className="block">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="label-eyebrow">{label}{required && <span className="text-destructive ml-1">*</span>}</div>
+        {action}
+      </div>
       {children}
-    </label>
+    </div>
   );
 }
-

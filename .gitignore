@@ -11,6 +11,7 @@ node_modules
 dist
 dist-ssr
 *.local
+.venv
 
 # Editor directories and files
 .vscode/*
@@ -22,3 +23,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+Backend/app/__pycache__/
+Backend/app/api/deps/__pycache__/
+Backend/app/api/routes/__pycache__/
+Backend/app/api/schemas/__pycache__/
+Backend/app/core/__pycache__/
+Backend/app/integrations/supabase/__pycache__/
+Backend/backend.egg-info/
+Frontend/package-lock.json

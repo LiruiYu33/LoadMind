@@ -11,5 +11,6 @@ export default function Index() {
     );
   }
   if (!user) return <Navigate to="/auth" replace />;
+  if (!role) return <Navigate to="/auth" replace />;
   return <Navigate to={role === "carrier" ? "/carrier" : "/shipper"} replace />;
 }

@@ -178,3 +178,19 @@
 .leaflet-container { background: hsl(217 100% 6%); font-family: 'Inter', sans-serif; }
 .leaflet-control-attribution { background: transparent !important; color: hsl(var(--muted-foreground)) !important; font-size: 10px; }
 .leaflet-control-attribution a { color: hsl(var(--primary-glow)) !important; }
+.loadmind-pin { position: relative; width: 28px; height: 34px; filter: drop-shadow(0 8px 12px hsl(210 11% 11% / 0.28)); }
+.loadmind-pin-head { position: absolute; left: 4px; top: 0; width: 20px; height: 20px; border-radius: 999px; background: hsl(var(--primary)); border: 3px solid white; }
+.loadmind-pin-tip { position: absolute; left: 10px; top: 16px; width: 8px; height: 16px; background: hsl(var(--primary)); clip-path: polygon(50% 100%, 0 0, 100% 0); }
+.loadmind-route-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: #1fa34a;
+  border: 2px solid white;
+  box-shadow: 0 0 0 4px rgb(31 163 74 / 0.22), 0 4px 12px rgb(0 0 0 / 0.25);
+  color: white;
+  font-size: 9px;
+  font-weight: 800;
+}
