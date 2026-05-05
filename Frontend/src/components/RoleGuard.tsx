@@ -13,8 +13,6 @@ export function RoleGuard({ allow, children }: { allow: AppRole; children: React
     );
   }
   if (!user) return <Navigate to="/auth" replace state={{ from: loc }} />;
-  if (role !== allow) {
-    return <Navigate to={role === "carrier" ? "/carrier" : role === "shipper" ? "/shipper" : "/auth"} replace />;
-  }
+  if (role !== allow) return <Navigate to={role ? (role === "carrier" ? "/carrier" : "/shipper") : "/auth"} replace />;
   return <>{children}</>;
 }
