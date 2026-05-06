@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
-import { createLoad } from "@/lib/loads-api";
+import { createLoad, suggestPrice } from "@/lib/loads-api";
 import { LocationPickerDialog } from "@/components/LocationPickerDialog";
 import { AddressAutocompleteInput } from "@/components/AddressAutocompleteInput";
 import { Package, MapPin, FileImage, Upload, ArrowRight } from "lucide-react";
@@ -25,6 +25,12 @@ export default function PostShipment() {
     dropoffTime: "",
   });
 
+  const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
+  const [suggestionReason, setSuggestionReason] = useState<string | null>(null);
+  const [suggestionLoading, setSuggestionLoading] = useState(false);
+  const [editedPrice, setEditedPrice] = useState<string>("");
+  const [priceAccepted, setPriceAccepted] = useState(false);
+
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -35,6 +41,10 @@ export default function PostShipment() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+    if (!priceAccepted) {
+      toast({ title: "Accept a price", description: "Please accept a suggested or modified price before posting.", variant: "destructive" });
+      return;
+    }
     const pickupTime = new Date(form.pickupTime);
     const dropoffTime = new Date(form.dropoffTime);
 
@@ -60,6 +70,7 @@ export default function PostShipment() {
         destination: form.destination,
         weight_kg: weight,
         load_type: form.category,
+        value: editedPrice ? Number(editedPrice) : suggestedPrice ?? undefined,
         length_cm: form.length ? Number(form.length) : null,
         width_cm: form.width ? Number(form.width) : null,
         height_cm: form.height ? Number(form.height) : null,
@@ -80,16 +91,51 @@ export default function PostShipment() {
     }
   };
 
+  const fetchPriceSuggestion = async () => {
+    // basic validation
+    if (!form.origin || !form.destination || !form.weight || !form.pickupTime || !form.dropoffTime) {
+      toast({ title: "Incomplete data", description: "Please fill origin, destination, weight and times to get a price suggestion.", variant: "destructive" });
+      return;
+    }
+    setSuggestionLoading(true);
+    try {
+      const resp = await suggestPrice({
+        cargo: form.cargo,
+        origin: form.origin,
+        destination: form.destination,
+        weight_kg: Number(form.weight) || 0,
+        load_type: form.category,
+        length_cm: form.length ? Number(form.length) : null,
+        width_cm: form.width ? Number(form.width) : null,
+        height_cm: form.height ? Number(form.height) : null,
+        pickup_time: new Date(form.pickupTime).toISOString(),
+        dropoff_time: new Date(form.dropoffTime).toISOString(),
+      });
+      setSuggestedPrice(resp.suggested_price);
+      setEditedPrice(String(resp.suggested_price));
+      setSuggestionReason(resp.reasoning ?? null);
+      setPriceAccepted(false);
+      toast({ title: "Price suggested", description: "AI suggested a marketplace price." });
+    } catch (err: unknown) {
+      toast({ title: "Could not get price", description: err instanceof Error ? err.message : "Please try again.", variant: "destructive" });
+    } finally {
+      setSuggestionLoading(false);
+    }
+  };
+
 
   return (
-    <div className="p-6 lg:p-10 space-y-8">
-      <div>
+    <div className="p-6 lg:p-10">
+      <div className="mb-8">
         <div className="label-eyebrow mb-2">SHIPPER PORTAL · NEW LISTING</div>
         <h1 className="font-display text-3xl lg:text-4xl font-bold">Post a Shipment</h1>
         <p className="text-sm text-muted-foreground mt-1.5">List freight to LoadMind's verified carrier marketplace.</p>
       </div>
 
-      <form onSubmit={submit} className="space-y-6 max-w-3xl">
+      <div className="flex gap-8 items-start">
+        <div className="flex-1">
+          <form onSubmit={submit} className="space-y-6 max-w-3xl">
+        
         {/* 1 — Cargo */}
         <Section number="01" icon={Package} title="Cargo Details">
           <div className="grid sm:grid-cols-2 gap-4">
@@ -205,6 +251,41 @@ export default function PostShipment() {
           {busy ? "Posting…" : <>Post Listing to Marketplace <ArrowRight className="h-4 w-4" /></>}
         </button>
       </form>
+        </div>
+
+        <aside className="w-80 sticky top-6 space-y-4">
+          <div className="surface-2 rounded-xl ghost-shadow p-6">
+            <div className="font-display text-sm font-bold mb-2">PRICE INSIGHTS</div>
+            <div className="text-xs text-muted-foreground mb-3">Suggested Marketplace Price</div>
+            <div className="mb-3">
+              <input
+                value={editedPrice}
+                onChange={(e) => { setEditedPrice(e.target.value); setPriceAccepted(false); }}
+                placeholder="$0.00"
+                className="loadmind-input text-lg font-bold"
+              />
+            </div>
+            <div className="mb-3">
+              <button type="button" onClick={fetchPriceSuggestion} disabled={suggestionLoading} className="w-full h-10 rounded-md surface-3 font-semibold">
+                {suggestionLoading ? "Working…" : "Get AI Recommendation"}
+              </button>
+            </div>
+            <div className="mb-3">
+              <button type="button" onClick={() => { if (suggestedPrice != null) { setEditedPrice(String(suggestedPrice)); setPriceAccepted(true); toast({ title: "Price accepted", description: "AI recommendation accepted." }); } }} disabled={suggestedPrice == null} className="w-full h-10 rounded-md bg-slate-100 font-semibold">
+                Accept AI Recommendation
+              </button>
+            </div>
+            <div className="text-xs text-muted-foreground mb-2">Reasoning</div>
+            <div className="text-sm text-muted-foreground">{suggestionReason ?? "No reasoning available yet."}</div>
+            <div className="mt-4">
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={priceAccepted} onChange={(e) => setPriceAccepted(e.target.checked)} />
+                <span>I've set and accept this price</span>
+              </label>
+            </div>
+          </div>
+        </aside>
+      </div>
 
       <style>{`
         .loadmind-input {
