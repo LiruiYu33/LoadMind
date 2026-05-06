@@ -35,6 +35,7 @@ export type CreateLoadInput = {
   destination: string;
   weight_kg: number;
   load_type: string;
+  value?: number;
   length_cm?: number | null;
   width_cm?: number | null;
   height_cm?: number | null;
@@ -70,5 +71,30 @@ export async function confirmLoadPickup(loadId: string): Promise<OpenLoad> {
 export async function confirmLoadDelivery(loadId: string): Promise<OpenLoad> {
   return apiRequest<OpenLoad>(`/api/v1/loads/${loadId}/confirm-delivery`, {
     method: "POST",
+  });
+}
+
+export type PriceSuggestionInput = {
+  cargo: string;
+  origin: string;
+  destination: string;
+  weight_kg: number;
+  load_type: string;
+  length_cm?: number | null;
+  width_cm?: number | null;
+  height_cm?: number | null;
+  pickup_time: string;
+  dropoff_time: string;
+};
+
+export type PriceSuggestion = {
+  suggested_price: number;
+  reasoning?: string | null;
+};
+
+export async function suggestPrice(payload: PriceSuggestionInput): Promise<PriceSuggestion> {
+  return apiRequest<PriceSuggestion>(`/api/v1/price-insights/suggest`, {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
