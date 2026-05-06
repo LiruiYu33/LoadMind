@@ -90,6 +90,9 @@ export type PriceSuggestionInput = {
 export type PriceSuggestion = {
   suggested_price: number;
   reasoning?: string | null;
+  pure_driving_hours?: number | null;
+  actual_duration_hours?: number | null;
+  distance_miles?: number | null;
 };
 
 export async function suggestPrice(payload: PriceSuggestionInput): Promise<PriceSuggestion> {
