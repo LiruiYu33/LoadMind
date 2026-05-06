@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.loads import router as loads_router
+from app.api.routes.price_insights import router as price_insights_router
 from app.core.config import settings
 
 app = FastAPI(title=settings.app_name)
@@ -19,6 +20,7 @@ app.add_middleware(
 )
 
 app.include_router(loads_router)
+app.include_router(price_insights_router)
 
 
 @app.get("/health")

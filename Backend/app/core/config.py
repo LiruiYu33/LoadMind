@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = ""
     supabase_timeout_seconds: float = 10.0
 
+    # OpenRouteService API key
+    ors_api_key: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 

@@ -12,6 +12,7 @@ class LoadCreateRequest(BaseModel):
     destination: str = Field(min_length=1, max_length=240)
     weight_kg: float = Field(gt=0, le=100000)
     load_type: str = Field(min_length=1, max_length=80)
+    value: float | None = Field(default=None, gt=0)
     length_cm: int | None = Field(default=None, ge=1, le=100000)
     width_cm: int | None = Field(default=None, ge=1, le=100000)
     height_cm: int | None = Field(default=None, ge=1, le=100000)
