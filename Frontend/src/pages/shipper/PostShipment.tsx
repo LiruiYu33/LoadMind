@@ -26,10 +26,15 @@ export default function PostShipment() {
   });
 
   const [suggestedPrice, setSuggestedPrice] = useState<number | null>(null);
+  const [distanceMiles, setDistanceMiles] = useState<number | null>(null);
+  const [pureDrivingHours, setPureDrivingHours] = useState<number | null>(null);
+  const [actualDurationHours, setActualDurationHours] = useState<number | null>(null);
   const [suggestionReason, setSuggestionReason] = useState<string | null>(null);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
   const [editedPrice, setEditedPrice] = useState<string>("");
   const [priceAccepted, setPriceAccepted] = useState(false);
+
+  const formatAudPrice = (value: number) => `AUD ${Math.round(value).toLocaleString("en-AU")}`;
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -112,7 +117,10 @@ export default function PostShipment() {
         dropoff_time: new Date(form.dropoffTime).toISOString(),
       });
       setSuggestedPrice(resp.suggested_price);
-      setEditedPrice(String(resp.suggested_price));
+      setDistanceMiles(resp.distance_miles ?? null);
+      setPureDrivingHours(resp.pure_driving_hours ?? null);
+      setActualDurationHours(resp.actual_duration_hours ?? null);
+      setEditedPrice(String(Math.round(resp.suggested_price)));
       setSuggestionReason(resp.reasoning ?? null);
       setPriceAccepted(false);
       toast({ title: "Price suggested", description: "AI suggested a marketplace price." });
@@ -124,6 +132,8 @@ export default function PostShipment() {
   };
 
 
+  const suggestedPriceLabel = suggestedPrice == null ? "No price yet" : formatAudPrice(suggestedPrice);
+
   return (
     <div className="p-6 lg:p-10">
       <div className="mb-8">
@@ -132,9 +142,9 @@ export default function PostShipment() {
         <p className="text-sm text-muted-foreground mt-1.5">List freight to LoadMind's verified carrier marketplace.</p>
       </div>
 
-      <div className="flex gap-8 items-start">
-        <div className="flex-1">
-          <form onSubmit={submit} className="space-y-6 max-w-3xl">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,880px)_340px] items-start">
+        <div className="min-w-0">
+          <form onSubmit={submit} className="space-y-6 w-full max-w-3xl">
         
         {/* 1 — Cargo */}
         <Section number="01" icon={Package} title="Cargo Details">
@@ -253,33 +263,62 @@ export default function PostShipment() {
       </form>
         </div>
 
-        <aside className="w-80 sticky top-6 space-y-4">
+        <aside className="w-full xl:sticky xl:top-6 space-y-4">
           <div className="surface-2 rounded-xl ghost-shadow p-6">
             <div className="font-display text-sm font-bold mb-2">PRICE INSIGHTS</div>
             <div className="text-xs text-muted-foreground mb-3">Suggested Marketplace Price</div>
-            <div className="mb-3">
-              <input
-                value={editedPrice}
-                onChange={(e) => { setEditedPrice(e.target.value); setPriceAccepted(false); }}
-                placeholder="$0.00"
-                className="loadmind-input text-lg font-bold"
-              />
+            <div className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Suggested price</div>
+              <div className="mt-1 text-3xl font-display font-bold text-foreground">{suggestedPriceLabel}</div>
             </div>
+            <label className="mb-3 block">
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Edit price</div>
+              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <span className="text-sm font-semibold text-muted-foreground">AUD</span>
+                <input
+                  type="number"
+                  step="1"
+                  value={editedPrice}
+                  onChange={(e) => { setEditedPrice(e.target.value); setPriceAccepted(false); }}
+                  placeholder="0"
+                  className="w-full bg-transparent text-lg font-semibold outline-none"
+                />
+              </div>
+            </label>
             <div className="mb-3">
               <button type="button" onClick={fetchPriceSuggestion} disabled={suggestionLoading} className="w-full h-10 rounded-md surface-3 font-semibold">
                 {suggestionLoading ? "Working…" : "Get AI Recommendation"}
               </button>
             </div>
             <div className="mb-3">
-              <button type="button" onClick={() => { if (suggestedPrice != null) { setEditedPrice(String(suggestedPrice)); setPriceAccepted(true); toast({ title: "Price accepted", description: "AI recommendation accepted." }); } }} disabled={suggestedPrice == null} className="w-full h-10 rounded-md bg-slate-100 font-semibold">
+              <button type="button" onClick={() => { if (suggestedPrice != null) { setEditedPrice(String(Math.round(suggestedPrice))); setPriceAccepted(true); toast({ title: "Price accepted", description: "AI recommendation accepted." }); } }} disabled={suggestedPrice == null} className="w-full h-10 rounded-md bg-slate-100 font-semibold">
                 Accept AI Recommendation
               </button>
             </div>
-            <div className="text-xs text-muted-foreground mb-2">Reasoning</div>
-            <div className="text-sm text-muted-foreground">{suggestionReason ?? "No reasoning available yet."}</div>
-            <div className="mt-4">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={priceAccepted} onChange={(e) => setPriceAccepted(e.target.checked)} />
+            <div className="mt-4 space-y-3">
+              <div className="rounded-xl bg-slate-50 p-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Route summary</div>
+                <dl className="mt-3 space-y-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <dt className="text-sm text-muted-foreground">Distance</dt>
+                    <dd className="text-sm font-semibold text-right">{distanceMiles == null ? "--" : `${distanceMiles.toLocaleString("en-AU", { maximumFractionDigits: 0 })} mi`}</dd>
+                  </div>
+                  <div className="flex items-start justify-between gap-4">
+                    <dt className="text-sm text-muted-foreground">Pure driving</dt>
+                    <dd className="text-sm font-semibold text-right">{pureDrivingHours == null ? "--" : `${pureDrivingHours.toFixed(1)} h`}</dd>
+                  </div>
+                  <div className="flex items-start justify-between gap-4">
+                    <dt className="text-sm text-muted-foreground">With breaks</dt>
+                    <dd className="text-sm font-semibold text-right">{actualDurationHours == null ? "--" : `${actualDurationHours.toFixed(1)} h`}</dd>
+                  </div>
+                </dl>
+              </div>
+              <div className="rounded-xl bg-slate-50 p-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">Reasoning</div>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{suggestionReason ?? "No reasoning available yet."}</p>
+              </div>
+              <label className="flex items-start gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm">
+                <input className="mt-1" type="checkbox" checked={priceAccepted} onChange={(e) => setPriceAccepted(e.target.checked)} />
                 <span>I've set and accept this price</span>
               </label>
             </div>

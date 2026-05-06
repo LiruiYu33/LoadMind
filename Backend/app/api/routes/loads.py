@@ -63,7 +63,11 @@ def create_load(
     payload: LoadCreateRequest, user: CurrentUser = Depends(get_current_user)
 ) -> LoadResponse:
     weight = float(payload.weight_kg)
-    value = round(weight * 0.42 + 800)
+    value = (
+        float(payload.value)
+        if payload.value is not None
+        else round(weight * 0.42 + 800)
+    )
     predicted_margin = round(value * 0.22)
 
     routing_hint = abs(hash(f"{payload.origin}:{payload.destination}:{weight}"))
