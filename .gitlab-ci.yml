@@ -1,5 +1,10 @@
 stages:
   - test
+  - build
+
+default:
+  tags:
+    - fit2107
 
 cache:
   key: "$CI_COMMIT_REF_SLUG"
