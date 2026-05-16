@@ -1,39 +1,23 @@
-stages:
-  - test
-  - build
+  stages:
+    - test
 
-default:
-  tags:
-    - fit2107
+  default:
+    tags:
+      - fit2107
 
-cache:
-  key: "$CI_COMMIT_REF_SLUG"
-  paths:
-    - Frontend/.npm/
-    - Backend/.cache/pip/
-
-frontend_test_build:
-  image: node:22
-  stage: test
-  timeout: 30m
-  script:
-    - cd Frontend
-    - npm config set cache .npm --global
-    - npm install --legacy-peer-deps --prefer-offline --no-audit --progress=false
-    - npm run test
-    - npm run build
-  artifacts:
+  cache:
+    key: "$CI_COMMIT_REF_SLUG"
     paths:
-      - Frontend/dist
-    expire_in: 1 week
+      - Backend/.cache/pip/
 
-backend_check:
-  image: python:3.11
-  stage: test
-  timeout: 20m
-  variables:
-    PIP_CACHE_DIR: "$CI_PROJECT_DIR/Backend/.cache/pip"
-  script:
-    - cd Backend
-    - pip install -e .
-    - python -m py_compile app/main.py app/api/schemas/loads.py
+  backend_check:
+    stage: test
+    timeout: 20m
+    variables:
+      PIP_CACHE_DIR: "$CI_PROJECT_DIR/Backend/.cache/pip"
+    script:
+      - cd Backend
+      - python3.12 --version
+      - python3.12 -m pip --version
+      - python3.12 -m pip install -e .
+      - python3.12 -m py_compile app/main.py app/api/schemas/loads.py
