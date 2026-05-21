@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { assignLoad, listOpenLoads } from "@/lib/loads-api";
-import { CheckCircle2, ArrowRight, Filter, Search, MapPin, Gauge, Truck, ChevronDown } from "lucide-react";
+import { CheckCircle2, ArrowRight, Filter, Search, MapPin, Gauge, Truck, ChevronDown, type LucideIcon } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { LoadRouteMap } from "@/components/LoadRouteMap";
+import { normalizeDryGoodsCategory } from "@/lib/dry-goods";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +18,8 @@ type Load = {
   id: string;
   origin: string;
   destination: string;
+  route_origin?: string | null;
+  route_destination?: string | null;
   weight_kg: number;
   load_type: string;
   value: number;
@@ -45,17 +48,17 @@ export default function AIMatcher() {
 
   useEffect(() => {
     listOpenLoads()
-      .then((data) => setLoads((data ?? []) as Load[]))
-      .catch((err: any) => {
+      .then((data) => setLoads(data ?? []))
+      .catch((err: unknown) => {
         toast({
           title: "Could not load marketplace loads",
-          description: err?.message ?? "Please try again.",
+          description: err instanceof Error ? err.message : "Please try again.",
           variant: "destructive",
         });
       });
     supabase.from("vehicles").select("id, unit_id, model, status, location").order("unit_id")
       .then(({ data }) => setVehicles((data ?? []) as Vehicle[]));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = loads;
 
@@ -65,12 +68,12 @@ export default function AIMatcher() {
       setLoads((current) => current.filter((x) => x.id !== load.id));
       toast({
         title: "Load assigned",
-        description: `${load.origin} → ${load.destination} dispatched to ${vehicle.unit_id} (${vehicle.model}).`,
+        description: `${formatLoadLocation(load.origin)} → ${formatLoadLocation(load.destination)} dispatched to ${vehicle.unit_id} (${vehicle.model}).`,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: "Could not assign load",
-        description: err?.message ?? "Please refresh and try again.",
+        description: err instanceof Error ? err.message : "Please refresh and try again.",
         variant: "destructive",
       });
     }
@@ -101,20 +104,27 @@ export default function AIMatcher() {
               No matches yet — AI Engine is rescanning the marketplace.
             </div>
           )}
-          {filtered.map((l) => (
+          {filtered.map((l) => {
+            const displayOrigin = formatLoadLocation(l.origin);
+            const displayDestination = formatLoadLocation(l.destination);
+            const mapOrigin = formatLoadLocation(l.route_origin || l.origin);
+            const mapDestination = formatLoadLocation(l.route_destination || l.destination);
+            const displayCategory = normalizeDryGoodsCategory(l.load_type);
+
+            return (
             <article key={l.id} className="surface-2 rounded-xl p-6 ghost-shadow flex flex-col gap-4">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+                <div className="min-w-0">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className="pill pill-active">{l.load_type}</span>
+                    <span className="pill pill-active">{displayCategory}</span>
                     <span>·</span>
                     <span>{(Number(l.weight_kg) / 1000).toFixed(1)} t</span>
                   </div>
-                  <h3 className="font-display text-xl font-bold mt-2">
-                    {l.origin} <ArrowRight className="inline h-4 w-4 mx-1 text-muted-foreground" /> {l.destination}
+                  <h3 className="font-display text-xl font-bold mt-2 break-words">
+                    {displayOrigin} <ArrowRight className="inline h-4 w-4 mx-1 shrink-0 text-muted-foreground" /> {displayDestination}
                   </h3>
                 </div>
-                <div className="text-right">
+                <div className="shrink-0 text-right">
                   <div className="label-eyebrow">LOAD VALUE</div>
                   <div className="font-display text-2xl font-extrabold text-action-deep font-mono-data">
                     ${Number(l.value).toLocaleString()}
@@ -132,13 +142,13 @@ export default function AIMatcher() {
 
               {/* Full load details */}
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
-                <Detail icon={MapPin} label="Pickup" value={l.origin} />
+                <Detail icon={MapPin} label="Pickup" value={displayOrigin} />
                 <Detail
                   icon={Gauge}
                   label="Pickup Time"
                   value={formatDateTime(l.pickup_time)}
                 />
-                <Detail icon={MapPin} label="Delivery" value={l.destination} />
+                <Detail icon={MapPin} label="Delivery" value={displayDestination} />
                 <Detail
                   icon={Gauge}
                   label="Dropoff Time"
@@ -146,7 +156,12 @@ export default function AIMatcher() {
                 />
               </div>
 
-              <LoadRouteMap origin={l.origin} destination={l.destination} />
+              <LoadRouteMap
+                origin={mapOrigin}
+                destination={mapDestination}
+                originLabel={displayOrigin}
+                destinationLabel={displayDestination}
+              />
 
               <div className="flex flex-wrap gap-2 pt-1">
                 <DropdownMenu>
@@ -184,7 +199,8 @@ export default function AIMatcher() {
                 </DropdownMenu>
               </div>
             </article>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -200,6 +216,27 @@ function formatDateTime(value: string) {
     minute: "2-digit",
   });
 }
+
+function formatLoadLocation(value: string) {
+  const key = value
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\baustralia\b/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+
+  if (key === "clayton" || key === "clayton vic" || key === "clayton victoria") {
+    return "Clayton, Victoria, 3168, Australia";
+  }
+
+  if (key === "cbd" || key === "melbourne cbd" || key === "cbd melbourne") {
+    return "Melbourne, Victoria, 3000, Australia";
+  }
+
+  return value;
+}
+
 function Stat({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
   return (
     <div>
@@ -209,16 +246,29 @@ function Stat({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
   );
 }
 
-function Detail({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
+function Detail({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
-    <div className="flex items-start gap-2.5">
+    <button
+      type="button"
+      onClick={() => setExpanded((current) => !current)}
+      aria-expanded={expanded}
+      title={value}
+      className="flex w-full items-start gap-2.5 rounded-md text-left transition hover:bg-background/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+    >
       <div className="h-8 w-8 rounded-md surface-3 grid place-items-center shrink-0">
         <Icon className="h-3.5 w-3.5 text-primary" />
       </div>
       <div className="min-w-0">
         <div className="label-eyebrow">{label}</div>
-        <div className="text-sm font-medium mt-0.5 truncate">{value}</div>
+        <div className={`text-sm font-medium mt-0.5 ${expanded ? "whitespace-normal break-words" : "truncate"}`}>
+          {value}
+        </div>
+        <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {expanded ? "Show less" : "Show full"}
+        </div>
       </div>
-    </div>
+    </button>
   );
 }

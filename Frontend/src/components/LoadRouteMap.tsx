@@ -17,10 +17,14 @@ const deliveryIcon = routePointIcon("D");
 export function LoadRouteMap({
   origin,
   destination,
+  originLabel,
+  destinationLabel,
   height = 180,
 }: {
   origin: string;
   destination: string;
+  originLabel?: string;
+  destinationLabel?: string;
   height?: number;
 }) {
   const [pickup, setPickup] = useState<Coordinates | null>(null);
@@ -87,9 +91,9 @@ export function LoadRouteMap({
       </MapContainer>
 
       <div className="absolute left-3 top-3 rounded-md bg-white/90 px-2.5 py-1.5 text-[11px] font-medium text-foreground shadow-sm">
-        <span className="text-action-deep">P</span> {origin}
+        <span className="text-action-deep">P</span> {originLabel ?? origin}
         <span className="mx-1.5 text-muted-foreground">→</span>
-        <span className="text-action-deep">D</span> {destination}
+        <span className="text-action-deep">D</span> {destinationLabel ?? destination}
       </div>
 
       {loading && (
