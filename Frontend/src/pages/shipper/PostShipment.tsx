@@ -6,6 +6,7 @@ import { LocationPickerDialog } from "@/components/LocationPickerDialog";
 import { AddressAutocompleteInput } from "@/components/AddressAutocompleteInput";
 import { Package, MapPin, FileImage, Upload, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { DRY_GOODS_CATEGORIES } from "@/lib/dry-goods";
 
 export default function PostShipment() {
   const { user } = useAuth();
@@ -14,7 +15,7 @@ export default function PostShipment() {
   const [locationPicker, setLocationPicker] = useState<"origin" | "destination" | null>(null);
   const [form, setForm] = useState({
     cargo: "",
-    category: "Dry Goods",
+    category: DRY_GOODS_CATEGORIES[0],
     weight: "",
     length: "",
     width: "",
@@ -150,11 +151,11 @@ export default function PostShipment() {
         <Section number="01" icon={Package} title="Cargo Details">
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="Item Description" required>
-              <input required value={form.cargo} onChange={set("cargo")} placeholder="e.g. Refrigerated produce pallets" className="loadmind-input" />
+              <input required value={form.cargo} onChange={set("cargo")} placeholder="e.g. Palletized non-perishable groceries" className="loadmind-input" />
             </Field>
             <Field label="Category">
               <select value={form.category} onChange={set("category")} className="loadmind-input">
-                {["Dry Goods", "Reefer Produce", "Construction Steel", "Consumer Electronics", "Hazardous", "Flatbed Steel"].map((o) => (
+                {DRY_GOODS_CATEGORIES.map((o) => (
                   <option key={o}>{o}</option>
                 ))}
               </select>
