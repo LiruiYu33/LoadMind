@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { Package, Filter, Calendar, LayoutGrid, List, ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
+import { normalizeDryGoodsCargo } from "@/lib/dry-goods";
 
 type Shipment = {
   id: string;
@@ -82,7 +83,7 @@ export default function ShipmentHistory() {
                 {s.origin} → {s.destination}
               </div>
               <div className="text-xs text-muted-foreground mt-0.5">
-                {s.cargo ?? s.load_type} · {s.assigned_carrier_name ?? "Carrier pending"} · {(Number(s.weight_kg) / 1000).toFixed(1)} t
+                {normalizeDryGoodsCargo(s.cargo, s.load_type)} · {s.assigned_carrier_name ?? "Carrier pending"} · {(Number(s.weight_kg) / 1000).toFixed(1)} t
               </div>
             </div>
             <div className="text-right">

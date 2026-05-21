@@ -17,11 +17,11 @@ The Price Insights API endpoint provides dynamic freight price predictions using
 **Request Body** (JSON):
 ```json
 {
-  "cargo": "Refrigerated produce pallets",
+  "cargo": "Palletized non-perishable groceries",
   "origin": "Melbourne, VIC",
   "destination": "Sydney, NSW",
   "weight_kg": 4500,
-  "load_type": "Reefer Produce",
+  "load_type": "Non-perishable Food & Beverages",
   "length_cm": 200,
   "width_cm": 120,
   "height_cm": 180,
@@ -34,7 +34,7 @@ The Price Insights API endpoint provides dynamic freight price predictions using
 ```json
 {
   "suggested_price": 2840.50,
-  "reasoning": "Route: 903 miles, 13.5h driving + 10.0h break = 23.5h total. Weight: 9921 lbs. Category: Reefer Produce.",
+  "reasoning": "Route: 903 miles, 13.5h driving + 10.0h break = 23.5h total. Weight: 9921 lbs. Category: Non-perishable Food & Beverages.",
   "pure_driving_hours": 13.5,
   "actual_duration_hours": 23.5,
   "distance_miles": 903.0
@@ -136,11 +136,11 @@ CELERY_RESULT_BACKEND=redis://redis:6379/1
 curl -X POST "http://localhost:8000/api/v1/price-insights/suggest" \
   -H "Content-Type: application/json" \
   -d '{
-    "cargo": "Steel beams",
+    "cargo": "Packaged building materials",
     "origin": "Melbourne, VIC",
     "destination": "Sydney, NSW",
     "weight_kg": 5000,
-    "load_type": "Flatbed Steel",
+    "load_type": "Packaged Building Materials",
     "pickup_time": "2026-05-10T10:00:00",
     "dropoff_time": "2026-05-12T14:00:00"
   }'
@@ -167,4 +167,4 @@ curl -X POST "http://localhost:8000/api/v1/price-insights/suggest" \
 - Add rate limiting on geocoding
 - Store pricing history for analytics
 - Integrate with real-time freight market data
-- Support multiple vehicle profiles (van, flatbed, reefer, etc.)
+- Support multiple dry-goods vehicle profiles
