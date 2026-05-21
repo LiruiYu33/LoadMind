@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { assignLoad, listOpenLoads } from "@/lib/loads-api";
-import { CheckCircle2, ArrowRight, Filter, Search, MapPin, Gauge, Truck, ChevronDown } from "lucide-react";
+import { CheckCircle2, ArrowRight, Filter, Search, MapPin, Gauge, Truck, ChevronDown, type LucideIcon } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { LoadRouteMap } from "@/components/LoadRouteMap";
 import {
@@ -45,17 +45,17 @@ export default function AIMatcher() {
 
   useEffect(() => {
     listOpenLoads()
-      .then((data) => setLoads((data ?? []) as Load[]))
-      .catch((err: any) => {
+      .then((data) => setLoads(data ?? []))
+      .catch((err: unknown) => {
         toast({
           title: "Could not load marketplace loads",
-          description: err?.message ?? "Please try again.",
+          description: err instanceof Error ? err.message : "Please try again.",
           variant: "destructive",
         });
       });
     supabase.from("vehicles").select("id, unit_id, model, status, location").order("unit_id")
       .then(({ data }) => setVehicles((data ?? []) as Vehicle[]));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = loads;
 
@@ -67,10 +67,10 @@ export default function AIMatcher() {
         title: "Load assigned",
         description: `${load.origin} → ${load.destination} dispatched to ${vehicle.unit_id} (${vehicle.model}).`,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: "Could not assign load",
-        description: err?.message ?? "Please refresh and try again.",
+        description: err instanceof Error ? err.message : "Please refresh and try again.",
         variant: "destructive",
       });
     }
@@ -209,7 +209,7 @@ function Stat({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
   );
 }
 
-function Detail({ icon: Icon, label, value }: { icon: any; label: string; value: string }) {
+function Detail({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
   return (
     <div className="flex items-start gap-2.5">
       <div className="h-8 w-8 rounded-md surface-3 grid place-items-center shrink-0">

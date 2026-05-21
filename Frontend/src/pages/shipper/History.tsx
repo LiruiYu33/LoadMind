@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { Package, Filter, Calendar, LayoutGrid, List, ChevronLeft, ChevronRight } from "lucide-react";
+import { Package, Filter, Calendar, LayoutGrid, List, ChevronLeft, ChevronRight, type LucideIcon } from "lucide-react";
 
 type Shipment = {
   id: string;
@@ -108,7 +108,7 @@ export default function ShipmentHistory() {
   );
 }
 
-function FilterPill({ icon: Icon, label }: { icon: any; label: string }) {
+function FilterPill({ icon: Icon, label }: { icon: LucideIcon; label: string }) {
   return (
     <button className="h-9 px-4 rounded-md surface-2 text-sm flex items-center gap-2 hover:lift-shadow transition">
       <Icon className="h-3.5 w-3.5 text-muted-foreground" /> {label}

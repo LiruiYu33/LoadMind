@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Plus, Truck, Edit3, X, Loader2, Trash2, MapPin } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
@@ -65,7 +65,7 @@ export default function FleetManagement() {
   const [selected, setSelected] = useState<Vehicle | null>(null);
   const [actingLoadId, setActingLoadId] = useState<string | null>(null);
 
-  const refreshAssignedLoads = () => {
+  const refreshAssignedLoads = useCallback(() => {
     if (!user) {
       setAssignedLoads([]);
       return;
@@ -78,7 +78,7 @@ export default function FleetManagement() {
       .in("status", ["scheduled", "in_transit"])
       .order("assigned_at", { ascending: false })
       .then(({ data }) => setAssignedLoads((data ?? []) as AssignedLoad[]));
-  };
+  }, [user]);
 
   const refresh = () =>
     supabase.from("vehicles").select("*").order("unit_id").then(({ data }) => {
@@ -91,7 +91,7 @@ export default function FleetManagement() {
 
   useEffect(() => {
     refreshAssignedLoads();
-  }, [user]);
+  }, [refreshAssignedLoads]);
 
   const handleConfirm = async (load: AssignedLoad) => {
     setActingLoadId(load.id);
