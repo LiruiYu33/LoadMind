@@ -203,6 +203,16 @@ Useful routes include:
 
 Most API routes require a Supabase access token from the logged-in user.
 
+## Risk and Privacy Documentation
+
+Internal assessment notes for privacy, security, AI/model risk, third-party service risk, and MVP limitations are documented in:
+
+```text
+docs/RISK_SECURITY.md
+```
+
+The login page also includes a short user-facing **Privacy Policy** dialog. That dialog is a simplified user explanation, while `docs/RISK_SECURITY.md` is the fuller internal risk and security assessment for the MVP.
+
 ## Testing and Build Commands
 
 Frontend:
