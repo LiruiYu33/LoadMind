@@ -1,10 +1,20 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Truck, Package, ArrowRight, Loader2 } from "lucide-react";
+import { Truck, Package, ArrowRight, Loader2, ShieldCheck, LockKeyhole, Database, MapPinned } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, AppRole } from "@/lib/auth";
 import { toast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 const REMEMBERED_CREDENTIALS_KEY = "loadmind.rememberedCredentials.v1";
 
@@ -178,7 +188,7 @@ const Auth = () => {
       </div>
 
       {/* Right: form */}
-      <div className="bg-surface flex items-center justify-center p-8 lg:p-16">
+      <div className="relative bg-surface flex items-center justify-center p-8 pb-24 lg:p-16 lg:pb-24">
         <div className="w-full max-w-md">
           <div className="label-eyebrow mb-2">{mode === "signin" ? "RETURNING OPERATOR" : "NEW WORKSPACE"}</div>
           <h2 className="font-display text-3xl font-bold mb-8">
@@ -278,6 +288,8 @@ const Auth = () => {
             </button>
           </div>
         </div>
+
+        <PrivacyPolicyDialog />
       </div>
     </div>
   );
@@ -322,4 +334,101 @@ function writeRememberedCredentials(credentials: RememberedCredentials) {
 
 function clearRememberedCredentials() {
   window.localStorage.removeItem(REMEMBERED_CREDENTIALS_KEY);
+}
+
+function PrivacyPolicyDialog() {
+  const protections = [
+    {
+      icon: ShieldCheck,
+      title: "Privacy-first handling",
+      text: "We collect only the account, role, shipment, route, and fleet details needed to run the freight workflow.",
+    },
+    {
+      icon: LockKeyhole,
+      title: "Protected access",
+      text: "Authentication is handled through Supabase, and your active Carrier or Shipper portal is controlled by the role you choose at sign in.",
+    },
+    {
+      icon: Database,
+      title: "Operational use only",
+      text: "Shipment and location details are used for posting loads, matching carriers, route display, status tracking, and price suggestions.",
+    },
+    {
+      icon: MapPinned,
+      title: "Address transparency",
+      text: "Map and address features use selected street addresses for geocoding and route display. We show readable addresses instead of asking users to manage raw coordinates.",
+    },
+  ];
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button
+          type="button"
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 text-xs font-semibold uppercase tracking-wide text-muted-foreground underline-offset-4 transition hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-4 focus-visible:ring-offset-background"
+        >
+          Privacy Policy
+        </button>
+      </DialogTrigger>
+      <DialogContent className="grid max-h-[88vh] max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto] gap-0 overflow-hidden rounded-lg border-border/70 bg-surface p-0 shadow-2xl">
+        <div className="surface-1 border-b border-border/60 px-6 py-5">
+          <DialogHeader>
+            <div className="mb-2 flex h-10 w-10 items-center justify-center rounded-md bg-primary/10">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+            </div>
+            <DialogTitle className="font-display text-2xl">LoadMind Privacy Policy</DialogTitle>
+            <DialogDescription>
+              A short summary of how this MVP protects account, shipment, route, and fleet information.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
+
+        <div className="min-h-0 space-y-5 overflow-y-auto px-6 py-5">
+          <div className="grid gap-3 sm:grid-cols-2">
+            {protections.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.title} className="surface-2 rounded-md p-4">
+                  <Icon className="mb-3 h-4 w-4 text-primary" />
+                  <div className="font-display text-sm font-semibold">{item.title}</div>
+                  <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{item.text}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="surface-2 rounded-md p-4 text-sm leading-relaxed text-muted-foreground">
+            <div className="label-eyebrow mb-2">STANDARDS WE ARE GUIDED BY</div>
+            LoadMind is designed around privacy and security principles from the Australian Privacy Principles,
+            GDPR-style transparency and data minimisation principles, and OWASP secure web application guidance.
+            This MVP is not a legal compliance certification, but these principles guide how we handle user and
+            operational data.
+          </div>
+
+          <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-3">
+            <div>
+              <div className="font-display font-semibold text-foreground">No payment data</div>
+              <p className="mt-1">The MVP does not ask for card details, invoices, or banking information.</p>
+            </div>
+            <div>
+              <div className="font-display font-semibold text-foreground">Limited sharing</div>
+              <p className="mt-1">We use third-party services only where needed for authentication, storage, maps, and routing.</p>
+            </div>
+            <div>
+              <div className="font-display font-semibold text-foreground">User control</div>
+              <p className="mt-1">Users can sign out at any time, and service restarts require a fresh login.</p>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter className="shrink-0 border-t border-border/60 bg-surface px-6 py-4 shadow-[0_-8px_24px_hsl(var(--background)/0.25)]">
+          <DialogClose asChild>
+            <button type="button" className="btn-primary-gradient h-10 rounded-md px-5 text-sm font-semibold">
+              Close
+            </button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
