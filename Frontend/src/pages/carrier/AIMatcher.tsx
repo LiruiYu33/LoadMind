@@ -111,18 +111,18 @@ export default function AIMatcher() {
 
             return (
             <article key={l.id} className="surface-2 rounded-xl p-6 ghost-shadow flex flex-col gap-4">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
+                <div className="min-w-0">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span className="pill pill-active">{l.load_type}</span>
                     <span>·</span>
                     <span>{(Number(l.weight_kg) / 1000).toFixed(1)} t</span>
                   </div>
-                  <h3 className="font-display text-xl font-bold mt-2">
-                    {displayOrigin} <ArrowRight className="inline h-4 w-4 mx-1 text-muted-foreground" /> {displayDestination}
+                  <h3 className="font-display text-xl font-bold mt-2 break-words">
+                    {displayOrigin} <ArrowRight className="inline h-4 w-4 mx-1 shrink-0 text-muted-foreground" /> {displayDestination}
                   </h3>
                 </div>
-                <div className="text-right">
+                <div className="shrink-0 text-right">
                   <div className="label-eyebrow">LOAD VALUE</div>
                   <div className="font-display text-2xl font-extrabold text-action-deep font-mono-data">
                     ${Number(l.value).toLocaleString()}
@@ -245,15 +245,28 @@ function Stat({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
 }
 
 function Detail({ icon: Icon, label, value }: { icon: LucideIcon; label: string; value: string }) {
+  const [expanded, setExpanded] = useState(false);
+
   return (
-    <div className="flex items-start gap-2.5">
+    <button
+      type="button"
+      onClick={() => setExpanded((current) => !current)}
+      aria-expanded={expanded}
+      title={value}
+      className="flex w-full items-start gap-2.5 rounded-md text-left transition hover:bg-background/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+    >
       <div className="h-8 w-8 rounded-md surface-3 grid place-items-center shrink-0">
         <Icon className="h-3.5 w-3.5 text-primary" />
       </div>
       <div className="min-w-0">
         <div className="label-eyebrow">{label}</div>
-        <div className="text-sm font-medium mt-0.5 truncate">{value}</div>
+        <div className={`text-sm font-medium mt-0.5 ${expanded ? "whitespace-normal break-words" : "truncate"}`}>
+          {value}
+        </div>
+        <div className="mt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {expanded ? "Show less" : "Show full"}
+        </div>
       </div>
-    </div>
+    </button>
   );
 }
