@@ -32,9 +32,9 @@ export function PortalShell({
   };
 
   return (
-    <div className="min-h-screen flex w-full bg-surface">
+    <div className="flex h-screen min-h-screen w-full overflow-hidden bg-surface">
       {/* Sidebar */}
-      <aside className="hidden md:flex w-64 flex-col surface-1">
+      <aside className="hidden h-screen w-64 shrink-0 flex-col surface-1 md:flex">
         <div className="p-6">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-md grid place-items-center" style={{ background: "var(--gradient-primary)" }}>
@@ -47,7 +47,7 @@ export function PortalShell({
           </div>
         </div>
 
-        <nav className="flex-1 px-3 space-y-1">
+        <nav className="flex-1 overflow-y-auto px-3 space-y-1">
           {items.map((it) => {
             const Icon = it.icon;
             return (
@@ -65,7 +65,7 @@ export function PortalShell({
           })}
         </nav>
 
-        <div className="p-3 space-y-2">
+        <div className="shrink-0 border-t border-border/60 p-3 space-y-2">
           {variant === "carrier" && (
             <button className="btn-action w-full h-10 rounded-md text-sm font-semibold flex items-center justify-center gap-2">
               <Activity className="h-4 w-4" /> Optimize Route
@@ -81,7 +81,7 @@ export function PortalShell({
       </aside>
 
       {/* Main */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Topbar */}
         <header className="h-16 surface-1 flex items-center justify-between px-4 md:px-8 gap-4">
           <div className="flex items-center gap-3 min-w-0">

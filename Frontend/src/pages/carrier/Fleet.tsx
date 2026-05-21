@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Plus, Truck, Edit3, X, Loader2, Trash2, MapPin } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { confirmLoadDelivery, confirmLoadPickup } from "@/lib/loads-api";
 import { LocationPickerDialog } from "@/components/LocationPickerDialog";
 import { AddressAutocompleteInput } from "@/components/AddressAutocompleteInput";
+import { normalizeDryGoodsCategory } from "@/lib/dry-goods";
 import { z } from "zod";
 import {
   Dialog,
@@ -65,7 +66,7 @@ export default function FleetManagement() {
   const [selected, setSelected] = useState<Vehicle | null>(null);
   const [actingLoadId, setActingLoadId] = useState<string | null>(null);
 
-  const refreshAssignedLoads = () => {
+  const refreshAssignedLoads = useCallback(() => {
     if (!user) {
       setAssignedLoads([]);
       return;
@@ -78,7 +79,7 @@ export default function FleetManagement() {
       .in("status", ["scheduled", "in_transit"])
       .order("assigned_at", { ascending: false })
       .then(({ data }) => setAssignedLoads((data ?? []) as AssignedLoad[]));
-  };
+  }, [user]);
 
   const refresh = () =>
     supabase.from("vehicles").select("*").order("unit_id").then(({ data }) => {
@@ -91,7 +92,7 @@ export default function FleetManagement() {
 
   useEffect(() => {
     refreshAssignedLoads();
-  }, [user]);
+  }, [refreshAssignedLoads]);
 
   const handleConfirm = async (load: AssignedLoad) => {
     setActingLoadId(load.id);
@@ -246,7 +247,7 @@ export default function FleetManagement() {
               {assignedLoads.map((l, idx) => (
                 <tr key={l.id} className={idx % 2 === 0 ? "bg-surface-lowest" : ""}>
                   <td className="px-5 py-4 font-medium">{l.origin} → {l.destination}</td>
-                  <td className="px-5 py-4">{l.load_type}</td>
+                  <td className="px-5 py-4">{normalizeDryGoodsCategory(l.load_type)}</td>
                   <td className="px-5 py-4">
                     <span className={`pill ${l.status === "in_transit" ? "pill-active" : "pill-on-time"}`}>
                       {l.status === "in_transit" ? "In Transit" : "Scheduled"}
