@@ -17,6 +17,8 @@ type Load = {
   id: string;
   origin: string;
   destination: string;
+  route_origin?: string | null;
+  route_destination?: string | null;
   weight_kg: number;
   load_type: string;
   value: number;
@@ -65,7 +67,7 @@ export default function AIMatcher() {
       setLoads((current) => current.filter((x) => x.id !== load.id));
       toast({
         title: "Load assigned",
-        description: `${load.origin} → ${load.destination} dispatched to ${vehicle.unit_id} (${vehicle.model}).`,
+        description: `${formatLoadLocation(load.origin)} → ${formatLoadLocation(load.destination)} dispatched to ${vehicle.unit_id} (${vehicle.model}).`,
       });
     } catch (err: unknown) {
       toast({
@@ -101,7 +103,13 @@ export default function AIMatcher() {
               No matches yet — AI Engine is rescanning the marketplace.
             </div>
           )}
-          {filtered.map((l) => (
+          {filtered.map((l) => {
+            const displayOrigin = formatLoadLocation(l.origin);
+            const displayDestination = formatLoadLocation(l.destination);
+            const mapOrigin = formatLoadLocation(l.route_origin || l.origin);
+            const mapDestination = formatLoadLocation(l.route_destination || l.destination);
+
+            return (
             <article key={l.id} className="surface-2 rounded-xl p-6 ghost-shadow flex flex-col gap-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
@@ -111,7 +119,7 @@ export default function AIMatcher() {
                     <span>{(Number(l.weight_kg) / 1000).toFixed(1)} t</span>
                   </div>
                   <h3 className="font-display text-xl font-bold mt-2">
-                    {l.origin} <ArrowRight className="inline h-4 w-4 mx-1 text-muted-foreground" /> {l.destination}
+                    {displayOrigin} <ArrowRight className="inline h-4 w-4 mx-1 text-muted-foreground" /> {displayDestination}
                   </h3>
                 </div>
                 <div className="text-right">
@@ -132,13 +140,13 @@ export default function AIMatcher() {
 
               {/* Full load details */}
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
-                <Detail icon={MapPin} label="Pickup" value={l.origin} />
+                <Detail icon={MapPin} label="Pickup" value={displayOrigin} />
                 <Detail
                   icon={Gauge}
                   label="Pickup Time"
                   value={formatDateTime(l.pickup_time)}
                 />
-                <Detail icon={MapPin} label="Delivery" value={l.destination} />
+                <Detail icon={MapPin} label="Delivery" value={displayDestination} />
                 <Detail
                   icon={Gauge}
                   label="Dropoff Time"
@@ -146,7 +154,12 @@ export default function AIMatcher() {
                 />
               </div>
 
-              <LoadRouteMap origin={l.origin} destination={l.destination} />
+              <LoadRouteMap
+                origin={mapOrigin}
+                destination={mapDestination}
+                originLabel={displayOrigin}
+                destinationLabel={displayDestination}
+              />
 
               <div className="flex flex-wrap gap-2 pt-1">
                 <DropdownMenu>
@@ -184,7 +197,8 @@ export default function AIMatcher() {
                 </DropdownMenu>
               </div>
             </article>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -200,6 +214,27 @@ function formatDateTime(value: string) {
     minute: "2-digit",
   });
 }
+
+function formatLoadLocation(value: string) {
+  const key = value
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\baustralia\b/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+
+  if (key === "clayton" || key === "clayton vic" || key === "clayton victoria") {
+    return "Clayton, Victoria, 3168, Australia";
+  }
+
+  if (key === "cbd" || key === "melbourne cbd" || key === "cbd melbourne") {
+    return "Melbourne, Victoria, 3000, Australia";
+  }
+
+  return value;
+}
+
 function Stat({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
   return (
     <div>

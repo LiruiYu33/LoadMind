@@ -4,6 +4,8 @@ export type OpenLoad = {
   id: string;
   origin: string;
   destination: string;
+  route_origin?: string | null;
+  route_destination?: string | null;
   weight_kg: number;
   load_type: string;
   value: number;
