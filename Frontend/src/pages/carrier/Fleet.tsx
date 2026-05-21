@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { confirmLoadDelivery, confirmLoadPickup } from "@/lib/loads-api";
 import { LocationPickerDialog } from "@/components/LocationPickerDialog";
 import { AddressAutocompleteInput } from "@/components/AddressAutocompleteInput";
+import { normalizeDryGoodsCategory } from "@/lib/dry-goods";
 import { z } from "zod";
 import {
   Dialog,
@@ -246,7 +247,7 @@ export default function FleetManagement() {
               {assignedLoads.map((l, idx) => (
                 <tr key={l.id} className={idx % 2 === 0 ? "bg-surface-lowest" : ""}>
                   <td className="px-5 py-4 font-medium">{l.origin} → {l.destination}</td>
-                  <td className="px-5 py-4">{l.load_type}</td>
+                  <td className="px-5 py-4">{normalizeDryGoodsCategory(l.load_type)}</td>
                   <td className="px-5 py-4">
                     <span className={`pill ${l.status === "in_transit" ? "pill-active" : "pill-on-time"}`}>
                       {l.status === "in_transit" ? "In Transit" : "Scheduled"}

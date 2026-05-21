@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { confirmLoadDelivery, confirmLoadPickup } from "@/lib/loads-api";
 import { toast } from "@/hooks/use-toast";
+import { normalizeDryGoodsCargo, normalizeDryGoodsCategory } from "@/lib/dry-goods";
 
 type Shipment = {
   id: string;
@@ -92,7 +93,7 @@ export default function ShipperDashboard() {
       .filter((s) => s.status === "scheduled" || s.status === "in_transit")
       .map((s) => ({
         id: s.id,
-        title: `${s.shipment_code ?? `LM-${s.id.slice(0, 8).toUpperCase()}`} · ${s.cargo ?? s.load_type}`,
+        title: `${s.shipment_code ?? `LM-${s.id.slice(0, 8).toUpperCase()}`} · ${normalizeDryGoodsCargo(s.cargo, s.load_type)}`,
         route: `${s.origin} → ${s.destination}`,
         carrier: s.assigned_carrier_name ?? "Carrier pending",
         status: (s.status === "in_transit" ? "in_transit" : "scheduled") as "in_transit" | "scheduled",
@@ -235,7 +236,7 @@ export default function ShipperDashboard() {
               {postedLoads.map((l, idx) => (
                 <tr key={l.id} className={idx % 2 === 0 ? "bg-surface-lowest" : ""}>
                   <td className="px-6 py-4 font-medium">{l.origin} → {l.destination}</td>
-                  <td className="px-6 py-4">{l.load_type}</td>
+                  <td className="px-6 py-4">{normalizeDryGoodsCategory(l.load_type)}</td>
                   <td className="px-6 py-4 text-muted-foreground">
                     {new Date(l.pickup_time).toLocaleString("en-AU", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                   </td>

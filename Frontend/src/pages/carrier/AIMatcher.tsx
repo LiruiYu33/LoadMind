@@ -4,6 +4,7 @@ import { assignLoad, listOpenLoads } from "@/lib/loads-api";
 import { CheckCircle2, ArrowRight, Filter, Search, MapPin, Gauge, Truck, ChevronDown, type LucideIcon } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { LoadRouteMap } from "@/components/LoadRouteMap";
+import { normalizeDryGoodsCategory } from "@/lib/dry-goods";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -108,13 +109,14 @@ export default function AIMatcher() {
             const displayDestination = formatLoadLocation(l.destination);
             const mapOrigin = formatLoadLocation(l.route_origin || l.origin);
             const mapDestination = formatLoadLocation(l.route_destination || l.destination);
+            const displayCategory = normalizeDryGoodsCategory(l.load_type);
 
             return (
             <article key={l.id} className="surface-2 rounded-xl p-6 ghost-shadow flex flex-col gap-4">
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className="pill pill-active">{l.load_type}</span>
+                    <span className="pill pill-active">{displayCategory}</span>
                     <span>·</span>
                     <span>{(Number(l.weight_kg) / 1000).toFixed(1)} t</span>
                   </div>
