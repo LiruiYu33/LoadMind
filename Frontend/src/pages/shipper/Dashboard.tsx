@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { confirmLoadDelivery, confirmLoadPickup } from "@/lib/loads-api";
@@ -53,7 +53,7 @@ export default function ShipperDashboard() {
   const [postedLoads, setPostedLoads] = useState<MarketplaceLoad[]>([]);
   const [actingId, setActingId] = useState<string | null>(null);
 
-  const refreshActive = () => {
+  const refreshActive = useCallback(() => {
     if (!user) {
       setShipments([]);
       return;
@@ -66,11 +66,11 @@ export default function ShipperDashboard() {
       .in("status", ["scheduled", "in_transit"])
       .order("pickup_time", { ascending: true })
       .then(({ data }) => setShipments((data ?? []) as Shipment[]));
-  };
+  }, [user]);
 
   useEffect(() => {
     refreshActive();
-  }, [user]);
+  }, [refreshActive]);
 
   useEffect(() => {
     if (!user) {
@@ -121,10 +121,10 @@ export default function ShipperDashboard() {
         });
       }
       refreshActive();
-    } catch (err: any) {
+    } catch (err: unknown) {
       toast({
         title: "Could not update lifecycle",
-        description: err?.message ?? "Please try again.",
+        description: err instanceof Error ? err.message : "Please try again.",
         variant: "destructive",
       });
     } finally {

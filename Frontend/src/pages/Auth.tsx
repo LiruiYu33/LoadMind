@@ -1,9 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Truck, Package, ArrowRight, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, AppRole } from "@/lib/auth";
 import { toast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
+
+const REMEMBERED_CREDENTIALS_KEY = "loadmind.rememberedCredentials.v1";
+
+type RememberedCredentials = {
+  email: string;
+  password: string;
+  role: AppRole;
+};
 
 const Auth = () => {
   const nav = useNavigate();
@@ -12,11 +21,23 @@ const Auth = () => {
   const [role, setRole] = useState<AppRole>("carrier");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberPassword, setRememberPassword] = useState(false);
   const [busy, setBusy] = useState(false);
 
-  const authErrorMessage = (err: any) => {
-    const raw = String(err?.message ?? "").toLowerCase();
-    const code = String(err?.code ?? "").toLowerCase();
+  useEffect(() => {
+    const remembered = readRememberedCredentials();
+    if (!remembered) return;
+
+    setEmail(remembered.email);
+    setPassword(remembered.password);
+    setRole(remembered.role);
+    setRememberPassword(true);
+  }, []);
+
+  const authErrorMessage = (err: unknown) => {
+    const message = getErrorField(err, "message");
+    const raw = message.toLowerCase();
+    const code = getErrorField(err, "code").toLowerCase();
 
     if (raw.includes("email not confirmed") || code.includes("email_not_confirmed")) {
       return "Your account is not confirmed yet. Please check your email and confirm your account.";
@@ -35,7 +56,7 @@ const Auth = () => {
       return "Incorrect email or password, or the user is not registered.";
     }
 
-    return err?.message ?? "Authentication failed. Please try again.";
+    return message || "Authentication failed. Please try again.";
   };
 
   const finishRoleSetup = async (uid: string, selectedRole: AppRole) => {
@@ -101,9 +122,14 @@ const Auth = () => {
         if (!uid) throw new Error("No account session was created.");
 
         const resolvedRole = await finishRoleSetup(uid, role);
+        if (rememberPassword) {
+          writeRememberedCredentials({ email, password, role });
+        } else {
+          clearRememberedCredentials();
+        }
         nav(resolvedRole === "carrier" ? "/carrier" : "/shipper");
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       const message = authErrorMessage(err);
 
       toast({ title: "Authentication error", description: message, variant: "destructive" });
@@ -195,6 +221,7 @@ const Auth = () => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="username"
                 className="w-full h-11 px-3 rounded-md surface-2 ring-1 ring-transparent focus:ring-primary outline-none transition"
                 placeholder="ops@yourcompany.com.au"
               />
@@ -207,10 +234,25 @@ const Auth = () => {
                 minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete={mode === "signin" ? "current-password" : "new-password"}
                 className="w-full h-11 px-3 rounded-md surface-2 ring-1 ring-transparent focus:ring-primary outline-none transition"
                 placeholder="••••••••"
               />
             </div>
+            {mode === "signin" && (
+              <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Checkbox
+                  checked={rememberPassword}
+                  onCheckedChange={(checked) => {
+                    const next = checked === true;
+                    setRememberPassword(next);
+                    if (!next) clearRememberedCredentials();
+                  }}
+                  aria-label="Remember password"
+                />
+                Remember password
+              </label>
+            )}
 
             <button
               type="submit"
@@ -242,3 +284,42 @@ const Auth = () => {
 };
 
 export default Auth;
+
+function getErrorField(err: unknown, field: "message" | "code") {
+  if (typeof err !== "object" || err === null || !(field in err)) return "";
+  return String((err as Record<"message" | "code", unknown>)[field] ?? "");
+}
+
+function readRememberedCredentials(): RememberedCredentials | null {
+  try {
+    const raw = window.localStorage.getItem(REMEMBERED_CREDENTIALS_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<RememberedCredentials>;
+    if (
+      typeof parsed.email !== "string" ||
+      typeof parsed.password !== "string" ||
+      (parsed.role !== "carrier" && parsed.role !== "shipper")
+    ) {
+      clearRememberedCredentials();
+      return null;
+    }
+
+    return {
+      email: parsed.email,
+      password: parsed.password,
+      role: parsed.role,
+    };
+  } catch {
+    clearRememberedCredentials();
+    return null;
+  }
+}
+
+function writeRememberedCredentials(credentials: RememberedCredentials) {
+  window.localStorage.setItem(REMEMBERED_CREDENTIALS_KEY, JSON.stringify(credentials));
+}
+
+function clearRememberedCredentials() {
+  window.localStorage.removeItem(REMEMBERED_CREDENTIALS_KEY);
+}

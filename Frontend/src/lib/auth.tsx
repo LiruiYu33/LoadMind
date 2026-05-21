@@ -1,6 +1,7 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { didServiceRestart } from "@/lib/service-session";
 
 export type AppRole = "carrier" | "shipper";
 
@@ -23,7 +24,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [roles, setRoles] = useState<AppRole[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchRoles = async (uid: string, preferredRole?: AppRole) => {
+  const clearAuthState = useCallback(() => {
+    setSession(null);
+    setUser(null);
+    setRole(null);
+    setRoles([]);
+  }, []);
+
+  const fetchRoles = useCallback(async (uid: string, preferredRole?: AppRole) => {
     const { data } = await supabase
       .from("user_roles")
       .select("role")
@@ -41,11 +49,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRoles(nextRoles);
     setRole(nextRole);
     if (nextRole) window.localStorage.setItem(activeRoleKey(uid), nextRole);
-  };
+  }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const requireFreshLoginAfterServiceRestart = async () => {
+      const restarted = await didServiceRestart();
+      if (!restarted) return false;
+
+      await supabase.auth.signOut({ scope: "local" });
+      if (!cancelled) clearAuthState();
+      return true;
+    };
+
     // Listener first, then session check (per Supabase guidance).
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      if (cancelled) return;
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
@@ -56,19 +76,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRoles([]);
       }
     });
-    supabase.auth.getSession().then(({ data: { session: s } }) => {
+
+    const bootstrapSession = async () => {
+      const restarted = await requireFreshLoginAfterServiceRestart();
+      if (cancelled) return;
+      if (restarted) {
+        setLoading(false);
+        return;
+      }
+
+      const { data: { session: s } } = await supabase.auth.getSession();
+      if (cancelled) return;
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) fetchRoles(s.user.id).finally(() => setLoading(false));
       else setLoading(false);
+    };
+
+    const serviceCheckInterval = window.setInterval(() => {
+      requireFreshLoginAfterServiceRestart().catch(() => {
+        // Keep the existing session if the restart check itself fails.
+      });
+    }, 30000);
+
+    bootstrapSession().catch(() => {
+      if (!cancelled) setLoading(false);
     });
-    return () => sub.subscription.unsubscribe();
-  }, []);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(serviceCheckInterval);
+      sub.subscription.unsubscribe();
+    };
+  }, [clearAuthState, fetchRoles]);
 
   const signOut = async () => {
     await supabase.auth.signOut();
-    setRole(null);
-    setRoles([]);
+    clearAuthState();
   };
 
   const refreshRole = async (preferredRole?: AppRole, userId?: string) => {
