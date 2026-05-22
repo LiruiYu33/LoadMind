@@ -203,15 +203,17 @@ Useful routes include:
 
 Most API routes require a Supabase access token from the logged-in user.
 
-## Risk and Privacy Documentation
+## Assessment Documentation
 
-Internal assessment notes for privacy, security, AI/model risk, third-party service risk, and MVP limitations are documented in:
+Assessment support documents are stored in:
 
-```text
-docs/RISK_SECURITY.md
-```
+- `docs/ROADMAP.md` - product roadmap for Moodle submission preparation.
+- `docs/AI_MODEL.md` - AI/ML model choice, integration, alternatives, and limitations.
+- `docs/DEMO_SCRIPT.md` - live demonstration walkthrough and Q&A preparation.
+- `docs/VALIDATION.md` - validation plan, technical checks, and model validation approach.
+- `docs/RISK_SECURITY.md` - privacy, security, AI/model risk, third-party service risk, and MVP limitations.
 
-The login page also includes a short user-facing **Privacy Policy** dialog. That dialog is a simplified user explanation, while `docs/RISK_SECURITY.md` is the fuller internal risk and security assessment for the MVP.
+The login page also includes a short user-facing **Privacy Policy** dialog. That dialog is a simplified user explanation, while the files in `docs/` provide fuller internal assessment support for the MVP.
 
 ## Testing and Build Commands
 
