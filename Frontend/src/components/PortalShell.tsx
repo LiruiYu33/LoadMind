@@ -2,7 +2,7 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { NavLink } from "@/components/NavLink";
 import {
-  Truck, Brain, Wrench, BarChart3, Send, History, LogOut, ChevronRight, Activity,
+  Truck, Brain, Wrench, BarChart3, Send, History, LogOut, ChevronRight, Activity, Repeat2,
 } from "lucide-react";
 
 export function PortalShell({
@@ -12,7 +12,7 @@ export function PortalShell({
   variant: "carrier" | "shipper";
   hub: string;
 }) {
-  const { user, signOut } = useAuth();
+  const { user, roles, switchRole, signOut } = useAuth();
   const nav = useNavigate();
 
   const carrierNav = [
@@ -25,10 +25,17 @@ export function PortalShell({
     { to: "/shipper/history",  label: "Shipment History", icon: History },
   ];
   const items = variant === "carrier" ? carrierNav : shipperNav;
+  const alternateRole = variant === "carrier" ? "shipper" : "carrier";
+  const canSwitchRole = roles.includes(alternateRole);
 
   const handleSignOut = async () => {
     await signOut();
     nav("/auth");
+  };
+
+  const handleSwitchRole = () => {
+    if (!switchRole(alternateRole)) return;
+    nav(alternateRole === "carrier" ? "/carrier" : "/shipper");
   };
 
   return (
@@ -95,6 +102,19 @@ export function PortalShell({
           </div>
 
           <div className="flex items-center gap-2 md:gap-4">
+            {canSwitchRole && (
+              <button
+                type="button"
+                onClick={handleSwitchRole}
+                className="h-9 rounded-md surface-2 px-3 text-xs font-semibold text-muted-foreground transition hover:text-foreground hover:lift-shadow flex items-center gap-2"
+                title={`Switch to ${alternateRole === "carrier" ? "Carrier" : "Shipper"}`}
+              >
+                <Repeat2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">
+                  {alternateRole === "carrier" ? "Carrier" : "Shipper"}
+                </span>
+              </button>
+            )}
             <div className="h-9 w-9 rounded-full grid place-items-center text-xs font-semibold text-primary-foreground" style={{ background: "var(--gradient-primary)" }}>
               {(user?.email ?? "U").slice(0, 2).toUpperCase()}
             </div>

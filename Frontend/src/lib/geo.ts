@@ -48,6 +48,8 @@ const KNOWN_LOCATIONS: Record<string, Coordinates> = {
   clayton: { lat: -37.9158025, lng: 145.1313859 },
   "clayton vic": { lat: -37.9158025, lng: 145.1313859 },
   "clayton victoria": { lat: -37.9158025, lng: 145.1313859 },
+  "clayton victoria 3168": { lat: -37.9158025, lng: 145.1313859 },
+  "melbourne victoria 3000": MELBOURNE_CBD,
   ballarat: { lat: -37.5622, lng: 143.8503 },
   bal: { lat: -37.5622, lng: 143.8503 },
   albury: { lat: -36.0737, lng: 146.9135 },

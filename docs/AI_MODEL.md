@@ -105,16 +105,30 @@ For the MVP, it is acceptable to position the current model as a feasibility mod
 - what performance metrics were observed,
 - what limits remain before production deployment.
 
-## Validation Requirements
+## Validation Support
 
-The model should be validated against a held-out validation set or a synthetic benchmark set. Recommended metrics:
+The repository includes MVP validation support for the pricing model:
+
+```text
+Backend/data/pricing_validation.csv
+Backend/scripts/validate_pricing_model.py
+```
+
+Run it with:
+
+```bash
+cd Backend
+python3.11 scripts/validate_pricing_model.py --show-rows
+```
+
+The committed dataset is a small synthetic dry-goods benchmark for demonstration support. It is useful for showing the validation method and comparing the XGBoost artifact with a rule-based baseline, but it should not be presented as production-grade freight pricing validation.
+
+The script reports:
 
 - MAE: average absolute pricing error.
 - RMSE: error metric that penalises larger mistakes.
 - R2: explanatory power compared with a baseline.
 - Baseline comparison: compare XGBoost against a simple rule-based pricing formula.
-
-If final numeric metrics are not available yet, the team should not invent them. Instead, state that model validation is an MVP limitation and explain the validation plan in `docs/VALIDATION.md`.
 
 ## Known Limitations
 
@@ -128,7 +142,7 @@ If final numeric metrics are not available yet, the team should not invent them.
 ## Future Improvements
 
 - Add a reproducible training script and training dataset description.
-- Add a validation script that reports MAE, RMSE, R2, and baseline comparison.
+- Replace the synthetic validation benchmark with a larger real or anonymised historical validation set.
 - Add dry-goods category features once enough data is available.
 - Add fuel cost, lane demand, pickup urgency, vehicle capacity, and historical acceptance rate.
 - Store prediction inputs and accepted prices for continuous improvement.
