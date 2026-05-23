@@ -1,6 +1,7 @@
 const API_BASE = (import.meta.env.VITE_BACKEND_URL || "http://localhost:8000").replace(/\/$/, "");
 const FRONTEND_INSTANCE_URL = "/__loadmind_frontend_instance";
 const STORAGE_KEY = "loadmind.serviceInstances.v1";
+const SERVICE_CHECK_TIMEOUT_MS = 1200;
 
 type ServiceInstances = {
   backend?: string;
@@ -35,26 +36,33 @@ async function fetchCurrentInstances(): Promise<ServiceInstances> {
 }
 
 async function fetchBackendInstance(): Promise<string | undefined> {
-  try {
-    const response = await fetch(`${API_BASE}/health`, { cache: "no-store" });
-    if (!response.ok) return undefined;
-    const body = (await response.json()) as BackendHealth;
-    return body.instance_id || undefined;
-  } catch {
-    return undefined;
-  }
+  const body = await fetchJsonWithTimeout<BackendHealth>(`${API_BASE}/health`);
+  return body?.instance_id || undefined;
 }
 
 async function fetchFrontendInstance(): Promise<string | undefined> {
   const configuredInstance = import.meta.env.VITE_FRONTEND_INSTANCE_ID;
 
+  const body = await fetchJsonWithTimeout<FrontendInstance>(FRONTEND_INSTANCE_URL);
+  return body?.instanceId || configuredInstance || undefined;
+}
+
+async function fetchJsonWithTimeout<T>(url: string): Promise<T | null> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), SERVICE_CHECK_TIMEOUT_MS);
+
   try {
-    const response = await fetch(FRONTEND_INSTANCE_URL, { cache: "no-store" });
-    if (!response.ok) return configuredInstance || undefined;
-    const body = (await response.json()) as FrontendInstance;
-    return body.instanceId || configuredInstance || undefined;
+    const response = await fetch(url, {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as T;
   } catch {
-    return configuredInstance || undefined;
+    return null;
+  } finally {
+    window.clearTimeout(timeout);
   }
 }
 

@@ -4,6 +4,7 @@ import { assignLoad, listOpenLoads } from "@/lib/loads-api";
 import { CheckCircle2, ArrowRight, Filter, Search, MapPin, Gauge, Truck, ChevronDown, type LucideIcon } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { LoadRouteMap } from "@/components/LoadRouteMap";
+import { LoadMindLoader } from "@/components/LoadMindLoader";
 import { normalizeDryGoodsCategory } from "@/lib/dry-goods";
 import {
   DropdownMenu,
@@ -47,29 +48,17 @@ export default function AIMatcher() {
   const [loads, setLoads] = useState<Load[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loadsLoading, setLoadsLoading] = useState(true);
-  const [loadProgress, setLoadProgress] = useState(8);
 
   useEffect(() => {
     let cancelled = false;
     let completionTimer: number | undefined;
 
     setLoadsLoading(true);
-    setLoadProgress(8);
-
-    const progressTimer = window.setInterval(() => {
-      setLoadProgress((current) => {
-        if (current >= 92) return current;
-        if (current < 55) return current + 8;
-        if (current < 80) return current + 4;
-        return current + 2;
-      });
-    }, 260);
 
     listOpenLoads()
       .then((data) => {
         if (cancelled) return;
         setLoads(data ?? []);
-        setLoadProgress(100);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -78,11 +67,9 @@ export default function AIMatcher() {
           description: err instanceof Error ? err.message : "Please try again.",
           variant: "destructive",
         });
-        setLoadProgress(100);
       })
       .finally(() => {
         if (cancelled) return;
-        window.clearInterval(progressTimer);
         completionTimer = window.setTimeout(() => {
           if (!cancelled) setLoadsLoading(false);
         }, 360);
@@ -92,7 +79,6 @@ export default function AIMatcher() {
 
     return () => {
       cancelled = true;
-      window.clearInterval(progressTimer);
       if (completionTimer) window.clearTimeout(completionTimer);
     };
   }, []);
@@ -136,26 +122,11 @@ export default function AIMatcher() {
 
         {loadsLoading && (
           <div className="surface-2 rounded-xl p-4 ghost-shadow">
-            <div className="mb-3 flex items-center justify-between gap-4">
-              <div>
-                <div className="label-eyebrow">SCANNING MARKETPLACE</div>
-                <div className="mt-1 text-sm font-medium text-muted-foreground">
-                  Loading AI-matched loads…
-                </div>
-              </div>
-              <div className="font-mono-data text-sm font-semibold text-primary">
-                {Math.round(loadProgress)}%
-              </div>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-              <div
-                className="h-full rounded-full transition-[width] duration-300 ease-out"
-                style={{
-                  width: `${loadProgress}%`,
-                  background: "linear-gradient(90deg, #16a34a 0%, #22c55e 55%, #86efac 100%)",
-                }}
-              />
-            </div>
+            <LoadMindLoader
+              compact
+              label="Scanning marketplace"
+              detail="Loading AI-matched loads"
+            />
           </div>
         )}
 
