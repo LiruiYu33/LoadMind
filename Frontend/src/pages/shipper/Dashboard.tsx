@@ -23,6 +23,7 @@ type Shipment = {
 
 type MarketplaceLoad = {
   id: string;
+  cargo: string | null;
   origin: string;
   destination: string;
   load_type: string;
@@ -81,7 +82,7 @@ export default function ShipperDashboard() {
 
     supabase
       .from("loads")
-      .select("id, origin, destination, load_type, pickup_time, dropoff_time, status, value, created_at")
+      .select("id, cargo, origin, destination, load_type, pickup_time, dropoff_time, status, value, created_at")
       .eq("shipper_id", user.id)
       .eq("status", "open")
       .order("created_at", { ascending: false })
@@ -219,7 +220,7 @@ export default function ShipperDashboard() {
             <thead className="surface-3">
               <tr className="text-left">
                 {[
-                  "Route",
+                  "Item & Route",
                   "Type",
                   "Pickup",
                   "Dropoff",
@@ -235,7 +236,14 @@ export default function ShipperDashboard() {
             <tbody>
               {postedLoads.map((l, idx) => (
                 <tr key={l.id} className={idx % 2 === 0 ? "bg-surface-lowest" : ""}>
-                  <td className="px-6 py-4 font-medium">{l.origin} → {l.destination}</td>
+                  <td className="px-6 py-4">
+                    <div className="font-display font-semibold">
+                      {normalizeDryGoodsCargo(l.cargo, l.load_type)}
+                    </div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      {l.origin} → {l.destination}
+                    </div>
+                  </td>
                   <td className="px-6 py-4">{normalizeDryGoodsCategory(l.load_type)}</td>
                   <td className="px-6 py-4 text-muted-foreground">
                     {new Date(l.pickup_time).toLocaleString("en-AU", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
