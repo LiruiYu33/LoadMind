@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Truck, Package, ArrowRight, Loader2, ShieldCheck, LockKeyhole, Database, MapPinned } from "lucide-react";
+import { Truck, Package, ArrowRight, ShieldCheck, LockKeyhole, Database, MapPinned } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, AppRole } from "@/lib/auth";
 import { toast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
+import { LoadMindLoader } from "@/components/LoadMindLoader";
 import {
   Dialog,
   DialogClose,
@@ -189,107 +190,123 @@ const Auth = () => {
 
       {/* Right: form */}
       <div className="relative bg-surface flex items-center justify-center p-8 pb-24 lg:p-16 lg:pb-24">
-        <div className="w-full max-w-md">
-          <div className="label-eyebrow mb-2">{mode === "signin" ? "RETURNING OPERATOR" : "NEW WORKSPACE"}</div>
-          <h2 className="font-display text-3xl font-bold mb-8">
-            {mode === "signin" ? "Sign in to LoadMind" : "Create your workspace"}
-          </h2>
+        {busy ? (
+          <LoadMindLoader
+            label={mode === "signin" ? "Signing in to LoadMind" : "Creating workspace"}
+            detail={mode === "signin" ? "Preparing your selected portal" : "Setting up your LoadMind access"}
+            className="h-[520px] bg-transparent"
+          />
+        ) : (
+          <>
+            <div className="w-full max-w-md">
+              <div className="label-eyebrow mb-2 text-center">{mode === "signin" ? "RETURNING OPERATOR" : "NEW WORKSPACE"}</div>
+              <h2 className="font-display text-3xl font-bold mb-8 text-center">
+                {mode === "signin" ? "Sign in to LoadMind" : "Create your workspace"}
+              </h2>
 
-          {/* Role selector */}
-          <div className="label-eyebrow mb-3">SELECT ROLE</div>
-          <div className="grid grid-cols-2 gap-3 mb-8">
-            {([
-              { v: "carrier", icon: Truck, t: "Carrier", d: "Operate trucks" },
-              { v: "shipper", icon: Package, t: "Shipper", d: "Move freight" },
-            ] as const).map((opt) => {
-              const Icon = opt.icon;
-              const active = role === opt.v;
-              return (
-                <button
-                  key={opt.v}
-                  type="button"
-                  onClick={() => setRole(opt.v)}
-                  className={`text-left p-4 rounded-md transition-all ${
-                    active
-                      ? "surface-2 ring-2 ring-primary lift-shadow"
-                      : "surface-1 hover:surface-2"
+              {/* Role selector */}
+              <div className="label-eyebrow mb-3 text-center">SELECT ROLE</div>
+              <div
+                className="relative mb-8 grid grid-cols-2 rounded-md surface-1 p-1"
+                role="tablist"
+                aria-label="Select account role"
+              >
+                <div
+                  className={`absolute left-1 top-1 h-[calc(100%-0.5rem)] w-[calc(50%-0.25rem)] rounded-[4px] bg-white lift-shadow transition-transform duration-300 ease-out ${
+                    role === "shipper" ? "translate-x-full" : "translate-x-0"
                   }`}
-                >
-                  <Icon className={`h-5 w-5 mb-3 ${active ? "text-primary" : "text-muted-foreground"}`} />
-                  <div className="font-display font-semibold text-sm">{opt.t}</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">{opt.d}</div>
-                </button>
-              );
-            })}
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="label-eyebrow block mb-2">EMAIL</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                autoComplete="username"
-                className="w-full h-11 px-3 rounded-md surface-2 ring-1 ring-transparent focus:ring-primary outline-none transition"
-                placeholder="ops@yourcompany.com.au"
-              />
-            </div>
-            <div>
-              <label className="label-eyebrow block mb-2">PASSWORD</label>
-              <input
-                type="password"
-                required
-                minLength={6}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                autoComplete={mode === "signin" ? "current-password" : "new-password"}
-                className="w-full h-11 px-3 rounded-md surface-2 ring-1 ring-transparent focus:ring-primary outline-none transition"
-                placeholder="••••••••"
-              />
-            </div>
-            {mode === "signin" && (
-              <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Checkbox
-                  checked={rememberPassword}
-                  onCheckedChange={(checked) => {
-                    const next = checked === true;
-                    setRememberPassword(next);
-                    if (!next) clearRememberedCredentials();
-                  }}
-                  aria-label="Remember password"
+                  aria-hidden="true"
                 />
-                Remember password
-              </label>
-            )}
+                {([
+                  { v: "carrier", icon: Truck, t: "Carrier", d: "Operate trucks" },
+                  { v: "shipper", icon: Package, t: "Shipper", d: "Move freight" },
+                ] as const).map((opt) => {
+                  const Icon = opt.icon;
+                  const active = role === opt.v;
+                  return (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setRole(opt.v)}
+                      className={`relative z-10 rounded-[4px] p-4 text-center transition-colors duration-200 ${
+                        active ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <Icon className={`mx-auto mb-3 h-5 w-5 transition-transform duration-200 ${active ? "scale-110" : ""}`} />
+                      <div className="font-display text-sm font-semibold">{opt.t}</div>
+                      <div className={`mt-0.5 text-xs ${active ? "text-primary/75" : "text-muted-foreground"}`}>{opt.d}</div>
+                    </button>
+                  );
+                })}
+              </div>
 
-            <button
-              type="submit"
-              disabled={busy}
-              className="btn-primary-gradient w-full h-11 rounded-md font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : (
-                <>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="label-eyebrow block mb-2">EMAIL</label>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="username"
+                    className="w-full h-11 px-3 rounded-md surface-2 ring-1 ring-transparent focus:ring-primary outline-none transition"
+                    placeholder="ops@yourcompany.com.au"
+                  />
+                </div>
+                <div>
+                  <label className="label-eyebrow block mb-2">PASSWORD</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                    className="w-full h-11 px-3 rounded-md surface-2 ring-1 ring-transparent focus:ring-primary outline-none transition"
+                    placeholder="••••••••"
+                  />
+                </div>
+                {mode === "signin" && (
+                  <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Checkbox
+                      checked={rememberPassword}
+                      onCheckedChange={(checked) => {
+                        const next = checked === true;
+                        setRememberPassword(next);
+                        if (!next) clearRememberedCredentials();
+                      }}
+                      aria-label="Remember password"
+                    />
+                    Remember password
+                  </label>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="btn-primary-gradient w-full h-11 rounded-md font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
+                >
                   {mode === "signin" ? "Sign in" : "Create workspace"} <ArrowRight className="h-4 w-4" />
-                </>
-              )}
-            </button>
-          </form>
+                </button>
+              </form>
 
-          <div className="mt-6 text-sm text-muted-foreground text-center">
-            {mode === "signin" ? "First time on LoadMind?" : "Already operating?"}{" "}
-            <button
-              type="button"
-              onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-              className="text-primary font-medium underline-offset-4 hover:underline"
-            >
-              {mode === "signin" ? "Create a workspace" : "Sign in"}
-            </button>
-          </div>
-        </div>
+              <div className="mt-6 text-sm text-muted-foreground text-center">
+                {mode === "signin" ? "First time on LoadMind?" : "Already operating?"}{" "}
+                <button
+                  type="button"
+                  onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+                  className="text-primary font-medium underline-offset-4 hover:underline"
+                >
+                  {mode === "signin" ? "Create a workspace" : "Sign in"}
+                </button>
+              </div>
+            </div>
 
-        <PrivacyPolicyDialog />
+            <PrivacyPolicyDialog />
+          </>
+        )}
       </div>
     </div>
   );
