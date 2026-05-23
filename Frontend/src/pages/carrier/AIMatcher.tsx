@@ -16,6 +16,7 @@ import {
 
 type Load = {
   id: string;
+  cargo?: string | null;
   origin: string;
   destination: string;
   route_origin?: string | null;
@@ -110,6 +111,7 @@ export default function AIMatcher() {
             const mapOrigin = formatLoadLocation(l.route_origin || l.origin);
             const mapDestination = formatLoadLocation(l.route_destination || l.destination);
             const displayCategory = normalizeDryGoodsCategory(l.load_type);
+            const itemDescription = formatCargoDescription(l.cargo, displayCategory);
 
             return (
             <article key={l.id} className="surface-2 rounded-xl p-6 ghost-shadow flex flex-col gap-4">
@@ -121,8 +123,11 @@ export default function AIMatcher() {
                     <span>{(Number(l.weight_kg) / 1000).toFixed(1)} t</span>
                   </div>
                   <h3 className="font-display text-xl font-bold mt-2 break-words">
-                    {displayOrigin} <ArrowRight className="inline h-4 w-4 mx-1 shrink-0 text-muted-foreground" /> {displayDestination}
+                    {itemDescription}
                   </h3>
+                  <p className="mt-2 text-sm font-medium text-muted-foreground break-words">
+                    {displayOrigin} <ArrowRight className="inline h-3.5 w-3.5 mx-1 shrink-0" /> {displayDestination}
+                  </p>
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="label-eyebrow">LOAD VALUE</div>
@@ -235,6 +240,11 @@ function formatLoadLocation(value: string) {
   }
 
   return value;
+}
+
+function formatCargoDescription(value: string | null | undefined, fallbackCategory: string) {
+  const raw = (value ?? "").trim();
+  return raw || fallbackCategory;
 }
 
 function Stat({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
