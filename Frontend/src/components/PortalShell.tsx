@@ -2,7 +2,7 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { NavLink } from "@/components/NavLink";
 import {
-  Truck, Brain, Wrench, BarChart3, Send, History, LogOut, ChevronRight, Activity,
+  Truck, Brain, Wrench, BarChart3, Send, History, LogOut, ChevronRight, Activity, Route,
 } from "lucide-react";
 
 export function PortalShell({
@@ -18,6 +18,7 @@ export function PortalShell({
   const carrierNav = [
     { to: "/carrier",          label: "AI Load Matcher", icon: Brain, end: true },
     { to: "/carrier/fleet",    label: "Fleet Management",icon: Wrench },
+    { to: "/carrier/route",    label: "Route Optimizer", icon: Route },
   ];
   const shipperNav = [
     { to: "/shipper",          label: "Dashboard",      icon: BarChart3, end: true },
@@ -74,7 +75,10 @@ export function PortalShell({
 
         <div className="shrink-0 border-t border-border/60 p-3 space-y-2">
           {variant === "carrier" && (
-            <button className="btn-action w-full h-10 rounded-md text-sm font-semibold flex items-center justify-center gap-2">
+            <button
+              onClick={() => nav("/carrier/route")}
+              className="btn-action w-full h-10 rounded-md text-sm font-semibold flex items-center justify-center gap-2"
+            >
               <Activity className="h-4 w-4" /> Optimize Route
             </button>
           )}
