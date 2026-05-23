@@ -2,7 +2,7 @@ import { Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { NavLink } from "@/components/NavLink";
 import {
-  Truck, Brain, Wrench, BarChart3, Send, History, LogOut, ChevronRight, Activity, Repeat2,
+  Truck, Brain, Wrench, BarChart3, Send, History, LogOut, ChevronRight, Activity,
 } from "lucide-react";
 
 export function PortalShell({
@@ -25,17 +25,17 @@ export function PortalShell({
     { to: "/shipper/history",  label: "Shipment History", icon: History },
   ];
   const items = variant === "carrier" ? carrierNav : shipperNav;
-  const alternateRole = variant === "carrier" ? "shipper" : "carrier";
-  const canSwitchRole = roles.includes(alternateRole);
+  const canSwitchRole = roles.includes("carrier") && roles.includes("shipper");
 
   const handleSignOut = async () => {
     await signOut();
     nav("/auth");
   };
 
-  const handleSwitchRole = () => {
-    if (!switchRole(alternateRole)) return;
-    nav(alternateRole === "carrier" ? "/carrier" : "/shipper");
+  const handleSwitchRole = (nextRole: "carrier" | "shipper") => {
+    if (nextRole === variant) return;
+    if (!switchRole(nextRole)) return;
+    nav(nextRole === "carrier" ? "/carrier" : "/shipper");
   };
 
   return (
@@ -103,17 +103,37 @@ export function PortalShell({
 
           <div className="flex items-center gap-2 md:gap-4">
             {canSwitchRole && (
-              <button
-                type="button"
-                onClick={handleSwitchRole}
-                className="h-9 rounded-md surface-2 px-3 text-xs font-semibold text-muted-foreground transition hover:text-foreground hover:lift-shadow flex items-center gap-2"
-                title={`Switch to ${alternateRole === "carrier" ? "Carrier" : "Shipper"}`}
+              <div
+                className="relative grid h-9 grid-cols-2 rounded-md surface-2 p-1 text-xs font-semibold"
+                role="tablist"
+                aria-label="Switch account role"
               >
-                <Repeat2 className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">
-                  {alternateRole === "carrier" ? "Carrier" : "Shipper"}
-                </span>
-              </button>
+                <div
+                  className={`absolute left-1 top-1 h-7 w-[calc(50%-0.25rem)] rounded-[4px] bg-white lift-shadow transition-transform duration-200 ease-out ${
+                    variant === "shipper" ? "translate-x-full" : "translate-x-0"
+                  }`}
+                  aria-hidden="true"
+                />
+                {(["carrier", "shipper"] as const).map((roleOption) => {
+                  const active = variant === roleOption;
+                  return (
+                    <button
+                      key={roleOption}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => handleSwitchRole(roleOption)}
+                      className={`relative z-10 h-7 min-w-[74px] rounded-[4px] px-3 transition-colors duration-200 ${
+                        active
+                          ? "text-primary"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {roleOption === "carrier" ? "Carrier" : "Shipper"}
+                    </button>
+                  );
+                })}
+              </div>
             )}
             <div className="h-9 w-9 rounded-full grid place-items-center text-xs font-semibold text-primary-foreground" style={{ background: "var(--gradient-primary)" }}>
               {(user?.email ?? "U").slice(0, 2).toUpperCase()}
