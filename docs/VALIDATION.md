@@ -64,10 +64,11 @@ Known lint status:
 - Frontend lint passes with existing Fast Refresh warnings from shared shadcn/component utility files.
 - These warnings do not block the build and are not introduced by the final feature work.
 
-Known test limitation:
+Committed frontend unit tests now cover:
 
-- The current committed frontend test is minimal and should be expanded.
-- More meaningful tests are listed in the future validation work section below.
+- dry-goods category restrictions and legacy category normalisation,
+- deterministic address handling for Melbourne CBD, Clayton, and demo street addresses,
+- service restart detection that requires users to log in again after backend/frontend restarts.
 
 ## AI/ML Model Validation
 
@@ -95,27 +96,34 @@ The backend also uses:
 - a simple Hours of Service rest adjustment,
 - USD to AUD exchange-rate conversion.
 
-## Recommended Model Validation Dataset
+## Current Model Validation Dataset
 
-Before final submission, the team should add or describe a validation dataset. A suitable CSV could use this schema:
-
-```text
-origin,destination,weight_kg,distance_miles,actual_duration_hours,reference_price_aud,predicted_price_aud
-```
-
-Recommended path:
+The repository now includes a small synthetic dry-goods pricing benchmark:
 
 ```text
 Backend/data/pricing_validation.csv
 ```
 
-The dataset may be:
+It uses this schema:
 
-- real historical freight pricing data, if available,
-- anonymised sample data,
-- simulated/synthetic dry-goods freight scenarios, if real data is not available.
+```text
+scenario,origin,destination,weight_kg,weight_lbs,typical_distance_miles,actual_duration_hours,reference_price_aud,reference_type
+```
 
-If the data is synthetic, the team should clearly state that it is synthetic and explain how the values were generated.
+The current rows are synthetic demo benchmarks. They cover Melbourne metro, Victorian regional, and interstate dry-goods examples. The benchmark is useful for showing validation method and comparing model output with a simple baseline. It is not production-grade evidence.
+
+If real historical or anonymised freight pricing data becomes available, it should replace or supplement this synthetic benchmark.
+
+## Validation Script
+
+Run:
+
+```bash
+cd Backend
+python3.11 scripts/validate_pricing_model.py --show-rows
+```
+
+The script prints MAE, RMSE, R2, a baseline comparison, and optional per-route prediction rows.
 
 ## Recommended Model Metrics
 
@@ -132,10 +140,10 @@ Suggested results table format:
 
 | Model | MAE (AUD) | RMSE (AUD) | R2 | Notes |
 | --- | ---: | ---: | ---: | --- |
-| Rule-based baseline | To be measured | To be measured | To be measured | Simple distance and weight formula. |
-| XGBoost pricing model | To be measured | To be measured | To be measured | Current MVP model. |
+| Rule-based baseline | Run script | Run script | Run script | Simple distance, weight, and duration formula. |
+| XGBoost pricing model | Run script | Run script | Run script | Current MVP model artifact. |
 
-Do not invent numeric metrics. If final metrics are not available by the demo, present the table as a planned validation approach and explain the current MVP limitation.
+Do not invent production claims from the synthetic benchmark. In the demo, describe the numbers as MVP validation support only.
 
 ## Suggested Baseline
 
@@ -196,16 +204,14 @@ Expected result: user is required to sign in again.
 
 Recommended next tests:
 
-- Unit tests for dry-goods category normalisation.
-- Unit tests for address alias normalisation, especially Clayton and Melbourne CBD.
 - Component tests for expandable load details.
 - Integration tests for create load, assign load, confirm pickup, and confirm delivery.
 - Backend tests for schema validation and role-sensitive endpoints.
-- Model validation script producing MAE, RMSE, R2, and baseline comparison.
-- Seed data script for repeatable demo runs.
+- Larger model validation dataset using real or anonymised freight pricing examples.
+- End-to-end test for price suggestion fallback when the backend or route provider is unavailable.
 
 ## Demo Statement
 
 Suggested validation explanation for Q&A:
 
-> We validated the MVP at two levels. First, we verified the product workflow manually and through local technical checks: frontend lint, build, test, and backend compile checks. Second, for the AI pricing model, the current repository includes the trained XGBoost artifact and the backend integration. The final production-level model validation still needs a committed validation dataset and numeric metrics such as MAE, RMSE, R2, and comparison against a rule-based baseline. For the MVP, we treat the model as a feasibility demonstration and clearly document this limitation.
+> We validated the MVP at two levels. First, we verified the product workflow manually and through local technical checks: frontend lint, build, targeted frontend unit tests, and backend compile checks. Second, for the AI pricing model, the repository includes the trained XGBoost artifact, backend integration, a synthetic dry-goods benchmark dataset, and a validation script that reports MAE, RMSE, R2, and comparison against a rule-based baseline. For the MVP, this is validation support rather than production-grade pricing evidence, and we clearly document that limitation.
