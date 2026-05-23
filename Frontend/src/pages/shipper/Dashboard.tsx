@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
 import { confirmLoadDelivery, confirmLoadPickup } from "@/lib/loads-api";
 import { toast } from "@/hooks/use-toast";
 import { normalizeDryGoodsCargo, normalizeDryGoodsCategory } from "@/lib/dry-goods";
+import { LoadMindLoader } from "@/components/LoadMindLoader";
 
 type Shipment = {
   id: string;
@@ -55,9 +56,7 @@ export default function ShipperDashboard() {
   const [postedLoads, setPostedLoads] = useState<MarketplaceLoad[]>([]);
   const [actingId, setActingId] = useState<string | null>(null);
   const [activeLoading, setActiveLoading] = useState(true);
-  const [activeProgress, setActiveProgress] = useState(8);
   const [postedLoading, setPostedLoading] = useState(true);
-  const [postedProgress, setPostedProgress] = useState(8);
 
   const refreshActive = useCallback(() => {
     if (!user) {
@@ -69,8 +68,6 @@ export default function ShipperDashboard() {
     let cancelled = false;
     let completionTimer: number | undefined;
     setActiveLoading(true);
-    setActiveProgress(8);
-    const progressTimer = startProgress(setActiveProgress);
 
     supabase
       .from("loads")
@@ -84,8 +81,6 @@ export default function ShipperDashboard() {
       })
       .finally(() => {
         if (cancelled) return;
-        window.clearInterval(progressTimer);
-        setActiveProgress(100);
         completionTimer = window.setTimeout(() => {
           if (!cancelled) setActiveLoading(false);
         }, 360);
@@ -93,7 +88,6 @@ export default function ShipperDashboard() {
 
     return () => {
       cancelled = true;
-      window.clearInterval(progressTimer);
       if (completionTimer) window.clearTimeout(completionTimer);
     };
   }, [user]);
@@ -112,8 +106,6 @@ export default function ShipperDashboard() {
     let cancelled = false;
     let completionTimer: number | undefined;
     setPostedLoading(true);
-    setPostedProgress(8);
-    const progressTimer = startProgress(setPostedProgress);
 
     supabase
       .from("loads")
@@ -127,8 +119,6 @@ export default function ShipperDashboard() {
       })
       .finally(() => {
         if (cancelled) return;
-        window.clearInterval(progressTimer);
-        setPostedProgress(100);
         completionTimer = window.setTimeout(() => {
           if (!cancelled) setPostedLoading(false);
         }, 360);
@@ -136,7 +126,6 @@ export default function ShipperDashboard() {
 
     return () => {
       cancelled = true;
-      window.clearInterval(progressTimer);
       if (completionTimer) window.clearTimeout(completionTimer);
     };
   }, [user]);
@@ -203,7 +192,7 @@ export default function ShipperDashboard() {
           </div>
         </div>
 
-        {activeLoading && <LoadingProgress label="Loading active shipments" progress={activeProgress} />}
+        {activeLoading && <LoadingProgress label="Loading active shipments" />}
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -269,7 +258,7 @@ export default function ShipperDashboard() {
           </div>
         </div>
 
-        {postedLoading && <LoadingProgress label="Loading posted loads" progress={postedProgress} />}
+        {postedLoading && <LoadingProgress label="Loading posted loads" />}
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -331,36 +320,11 @@ export default function ShipperDashboard() {
   );
 }
 
-function startProgress(setProgress: Dispatch<SetStateAction<number>>) {
-  return window.setInterval(() => {
-    setProgress((current) => {
-      if (current >= 92) return current;
-      if (current < 55) return current + 8;
-      if (current < 80) return current + 4;
-      return current + 2;
-    });
-  }, 260);
-}
-
-function LoadingProgress({ label, progress }: { label: string; progress: number }) {
+function LoadingProgress({ label }: { label: string }) {
   return (
     <div className="px-6 pb-5">
-      <div className="mb-2 flex items-center justify-between gap-4">
-        <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-          {label}
-        </div>
-        <div className="font-mono-data text-xs font-semibold text-primary">
-          {Math.round(progress)}%
-        </div>
-      </div>
-      <div className="h-2 overflow-hidden rounded-full bg-slate-200">
-        <div
-          className="h-full rounded-full transition-[width] duration-300 ease-out"
-          style={{
-            width: `${progress}%`,
-            background: "linear-gradient(90deg, #16a34a 0%, #22c55e 55%, #86efac 100%)",
-          }}
-        />
+      <div className="rounded-md surface-3">
+        <LoadMindLoader compact label={label} />
       </div>
     </div>
   );
