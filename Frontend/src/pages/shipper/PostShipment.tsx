@@ -31,6 +31,7 @@ export default function PostShipment() {
   const [pureDrivingHours, setPureDrivingHours] = useState<number | null>(null);
   const [actualDurationHours, setActualDurationHours] = useState<number | null>(null);
   const [suggestionReason, setSuggestionReason] = useState<string | null>(null);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
   const [editedPrice, setEditedPrice] = useState<string>("");
   const [priceAccepted, setPriceAccepted] = useState(false);
@@ -104,6 +105,7 @@ export default function PostShipment() {
       return;
     }
     setSuggestionLoading(true);
+    setSuggestionError(null);
     try {
       const resp = await suggestPrice({
         cargo: form.cargo,
@@ -123,10 +125,24 @@ export default function PostShipment() {
       setActualDurationHours(resp.actual_duration_hours ?? null);
       setEditedPrice(String(Math.round(resp.suggested_price)));
       setSuggestionReason(resp.reasoning ?? null);
+      setSuggestionError(null);
       setPriceAccepted(false);
       toast({ title: "Price suggested", description: "AI suggested a marketplace price." });
     } catch (err: unknown) {
-      toast({ title: "Could not get price", description: err instanceof Error ? err.message : "Please try again.", variant: "destructive" });
+      const fallbackMessage =
+        "AI price suggestion is currently unavailable. Enter a shipment value manually and tick the price acceptance box to continue.";
+      setSuggestedPrice(null);
+      setDistanceMiles(null);
+      setPureDrivingHours(null);
+      setActualDurationHours(null);
+      setSuggestionReason(fallbackMessage);
+      setSuggestionError(fallbackMessage);
+      setPriceAccepted(false);
+      toast({
+        title: "Use manual price",
+        description: err instanceof Error ? `${fallbackMessage} (${err.message})` : fallbackMessage,
+        variant: "destructive",
+      });
     } finally {
       setSuggestionLoading(false);
     }
@@ -291,6 +307,11 @@ export default function PostShipment() {
                 {suggestionLoading ? "Working…" : "Get AI Recommendation"}
               </button>
             </div>
+            {suggestionError ? (
+              <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-5 text-amber-900">
+                {suggestionError}
+              </div>
+            ) : null}
             <div className="mb-3">
               <button type="button" onClick={() => { if (suggestedPrice != null) { setEditedPrice(String(Math.round(suggestedPrice))); setPriceAccepted(true); toast({ title: "Price accepted", description: "AI recommendation accepted." }); } }} disabled={suggestedPrice == null} className="w-full h-10 rounded-md bg-slate-100 font-semibold">
                 Accept AI Recommendation

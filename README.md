@@ -210,6 +210,7 @@ Assessment support documents are stored in:
 - `docs/ROADMAP.md` - product roadmap for Moodle submission preparation.
 - `docs/AI_MODEL.md` - AI/ML model choice, integration, alternatives, and limitations.
 - `docs/DEMO_SCRIPT.md` - live demonstration walkthrough and Q&A preparation.
+- `docs/DEMO_DATA.md` - repeatable Supabase demo seed data instructions.
 - `docs/VALIDATION.md` - validation plan, technical checks, and model validation approach.
 - `docs/RISK_SECURITY.md` - privacy, security, AI/model risk, third-party service risk, and MVP limitations.
 
@@ -231,7 +232,8 @@ Backend:
 ```bash
 cd Backend
 python3.11 -m pip install -e .
-python3.11 -m py_compile app/main.py app/api/schemas/loads.py
+python3.11 -m py_compile app/main.py app/api/schemas/loads.py app/api/schemas/price_insights.py scripts/validate_pricing_model.py
+python3.11 scripts/validate_pricing_model.py --show-rows
 ```
 
 ## GitLab CI/CD

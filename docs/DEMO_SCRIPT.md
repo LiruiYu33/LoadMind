@@ -25,6 +25,10 @@ Complete these checks before the demonstration starts:
   - one Carrier account,
   - same email can be used for both roles if needed.
 - Confirm Supabase migrations have been applied.
+- Create the demo Auth users if they do not already exist:
+  - `shipper.demo@loadmind.test`,
+  - `carrier.demo@loadmind.test`.
+- Run `Frontend/supabase/seed_demo.sql` if the demo marketplace needs to be reset.
 - Confirm open demo loads and demo vehicles exist.
 - Start backend:
 
@@ -148,8 +152,8 @@ Mention current validation evidence:
 Mention model validation position:
 
 - the MVP includes a trained model artifact,
-- final numeric validation metrics should be supported by a validation dataset,
-- if metrics are not final, present this honestly as a current limitation and future refinement.
+- the repository includes a synthetic benchmark dataset and validation script,
+- current numeric metrics are MVP support only, not production-grade freight pricing validation.
 
 Mention risk and privacy:
 
@@ -209,6 +213,8 @@ If the live app has an issue:
 - Shipment posting works.
 - Address autocomplete or map pin selection works.
 - AI price suggestion works or fallback explanation is ready.
+- `Frontend/supabase/seed_demo.sql` has been run if demo data needed resetting.
+- `Backend/scripts/validate_pricing_model.py --show-rows` runs successfully.
 - Carrier can see open load.
 - Route map markers display correctly.
 - Assign Load dropdown is visible and usable.
