@@ -13,6 +13,7 @@ interface AuthCtx {
   loading: boolean;
   signOut: () => Promise<void>;
   refreshRole: (preferredRole?: AppRole, userId?: string) => Promise<void>;
+  switchRole: (nextRole: AppRole) => boolean;
 }
 
 const Ctx = createContext<AuthCtx>({} as AuthCtx);
@@ -120,8 +121,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (uid) await fetchRoles(uid, preferredRole);
   };
 
+  const switchRole = (nextRole: AppRole) => {
+    if (!user || !roles.includes(nextRole)) return false;
+    setRole(nextRole);
+    window.localStorage.setItem(activeRoleKey(user.id), nextRole);
+    return true;
+  };
+
   return (
-    <Ctx.Provider value={{ user, session, role, roles, loading, signOut, refreshRole }}>
+    <Ctx.Provider value={{ user, session, role, roles, loading, signOut, refreshRole, switchRole }}>
       {children}
     </Ctx.Provider>
   );

@@ -161,7 +161,7 @@ export default function PostShipment() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,880px)_340px] items-start">
         <div className="min-w-0">
-          <form onSubmit={submit} className="space-y-6 w-full max-w-3xl">
+          <form id="post-shipment-form" onSubmit={submit} className="space-y-6 w-full max-w-3xl">
         
         {/* 1 — Cargo */}
         <Section number="01" icon={Package} title="Cargo Details">
@@ -274,9 +274,6 @@ export default function PostShipment() {
           </div>
         </Section>
 
-        <button type="submit" disabled={busy} className="btn-primary-gradient h-12 px-6 rounded-md text-sm font-semibold flex items-center justify-center gap-2 w-full lg:w-auto">
-          {busy ? "Posting…" : <>Post Listing to Marketplace <ArrowRight className="h-4 w-4" /></>}
-        </button>
       </form>
         </div>
 
@@ -345,6 +342,14 @@ export default function PostShipment() {
               </label>
             </div>
           </div>
+          <button
+            type="submit"
+            form="post-shipment-form"
+            disabled={busy}
+            className="btn-primary-gradient h-12 px-6 rounded-md text-sm font-semibold flex items-center justify-center gap-2 w-full"
+          >
+            {busy ? "Posting…" : <>Post Listing to Marketplace <ArrowRight className="h-4 w-4" /></>}
+          </button>
         </aside>
       </div>
 
