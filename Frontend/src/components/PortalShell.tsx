@@ -1,4 +1,4 @@
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -14,6 +14,7 @@ export function PortalShell({
 }) {
   const { user, roles, switchRole, signOut } = useAuth();
   const nav = useNavigate();
+  const location = useLocation();
 
   const carrierNav = [
     { to: "/carrier",          label: "AI Load Matcher", icon: Brain, end: true },
@@ -25,6 +26,12 @@ export function PortalShell({
     { to: "/shipper/history",  label: "Shipment History", icon: History },
   ];
   const items = variant === "carrier" ? carrierNav : shipperNav;
+  const activeIndex = Math.max(
+    0,
+    items.findIndex((it) => (
+      it.end ? location.pathname === it.to : location.pathname === it.to || location.pathname.startsWith(`${it.to}/`)
+    )),
+  );
   const canSwitchRole = roles.includes("carrier") && roles.includes("shipper");
 
   const handleSignOut = async () => {
@@ -54,7 +61,13 @@ export function PortalShell({
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 space-y-1">
+        <nav className="relative flex-1 overflow-y-auto px-3">
+          <div
+            className="absolute left-3 right-3 top-0 h-10 rounded-md bg-white lift-shadow transition-transform duration-300 ease-out"
+            style={{ transform: `translateY(${activeIndex * 44}px)` }}
+            aria-hidden="true"
+          />
+          <div className="relative z-10 space-y-1">
           {items.map((it) => {
             const Icon = it.icon;
             return (
@@ -62,14 +75,15 @@ export function PortalShell({
                 key={it.to}
                 to={it.to}
                 end={it.end}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium text-muted-foreground hover:surface-2 hover:text-foreground transition"
-                activeClassName="surface-2 text-primary lift-shadow"
+                className="group relative flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground"
+                activeClassName="text-primary [&_.nav-icon]:scale-110 [&_.nav-icon]:text-primary"
               >
-                <Icon className="h-4 w-4" />
-                <span>{it.label}</span>
+                <Icon className="nav-icon h-4 w-4 shrink-0 transition-all duration-200 group-hover:scale-110" />
+                <span className="relative z-10">{it.label}</span>
               </NavLink>
             );
           })}
+          </div>
         </nav>
 
         <div className="shrink-0 border-t border-border/60 p-3 space-y-2">
@@ -150,10 +164,11 @@ export function PortalShell({
                 key={it.to}
                 to={it.to}
                 end={it.end}
-                className="flex items-center gap-2 px-3 py-2 rounded-md text-xs font-medium text-muted-foreground whitespace-nowrap surface-2"
-                activeClassName="text-primary ring-1 ring-primary"
+                className="group relative flex items-center gap-2 overflow-hidden rounded-md px-3 py-2 text-xs font-medium text-muted-foreground whitespace-nowrap surface-2 transition-colors duration-200 hover:text-foreground"
+                activeClassName="text-primary ring-1 ring-primary [&_.nav-icon]:scale-110 [&_.nav-icon]:text-primary"
               >
-                <Icon className="h-3.5 w-3.5" /> {it.label}
+                <Icon className="nav-icon h-3.5 w-3.5 shrink-0 transition-all duration-200 group-hover:scale-110" />
+                <span className="relative z-10">{it.label}</span>
               </NavLink>
             );
           })}
