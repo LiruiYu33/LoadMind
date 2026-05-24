@@ -45,6 +45,140 @@ def _get_load_or_404(load_id: str) -> dict:
     return load
 
 
+def _parse_datetime(value: object) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _number_or_none(value: object) -> float | None:
+    if value in (None, ""):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def _vehicle_status_blocks_assignment(vehicle: dict) -> bool:
+    status_value = str(vehicle.get("status") or "").strip().lower()
+    return status_value in {
+        "maintenance",
+        "offline",
+        "retired",
+        "unavailable",
+        "decommissioned",
+    }
+
+
+def _has_time_conflict(load: dict, scheduled_loads: list[dict]) -> bool:
+    load_start = _parse_datetime(load.get("pickup_time"))
+    load_end = _parse_datetime(load.get("dropoff_time"))
+    if load_start is None or load_end is None:
+        return True
+
+    for scheduled in scheduled_loads:
+        scheduled_start = _parse_datetime(scheduled.get("pickup_time"))
+        scheduled_end = _parse_datetime(scheduled.get("dropoff_time"))
+        if scheduled_start is None or scheduled_end is None:
+            return True
+        if load_start < scheduled_end and scheduled_start < load_end:
+            return True
+
+    return False
+
+
+def _has_enough_capacity(vehicle: dict, load: dict) -> bool:
+    capacity_t = _number_or_none(vehicle.get("capacity_t"))
+    weight_kg = _number_or_none(load.get("weight_kg"))
+    if capacity_t is None or weight_kg is None:
+        return False
+    return capacity_t * 1000 >= weight_kg
+
+
+def _dimension_fits(required: float | None, available: float | None) -> bool:
+    if required is None or available is None:
+        return True
+    return available >= required
+
+
+def _meters_to_centimeters(value: object) -> float | None:
+    meters = _number_or_none(value)
+    return None if meters is None else meters * 100
+
+
+def _has_dimensional_fit(vehicle: dict, load: dict) -> bool:
+    required = {
+        "length_cm": _number_or_none(load.get("length_cm")),
+        "width_cm": _number_or_none(load.get("width_cm")),
+        "height_cm": _number_or_none(load.get("height_cm")),
+    }
+    if not any(value is not None for value in required.values()):
+        return True
+
+    trailers = vehicle.get("trailers")
+    if not isinstance(trailers, list):
+        return True
+
+    dimensional_trailers = [
+        trailer
+        for trailer in trailers
+        if isinstance(trailer, dict)
+        and (
+            _number_or_none(trailer.get("length_m")) is not None
+            or _number_or_none(trailer.get("width_m")) is not None
+            or _number_or_none(trailer.get("height_m")) is not None
+        )
+    ]
+    if not dimensional_trailers:
+        return True
+
+    return any(
+        _dimension_fits(
+            required["length_cm"], _meters_to_centimeters(trailer.get("length_m"))
+        )
+        and _dimension_fits(
+            required["width_cm"], _meters_to_centimeters(trailer.get("width_m"))
+        )
+        and _dimension_fits(
+            required["height_cm"], _meters_to_centimeters(trailer.get("height_m"))
+        )
+        for trailer in dimensional_trailers
+    )
+
+
+def _validate_vehicle_can_take_load(vehicle: dict, load: dict, scheduled_loads: list[dict]) -> None:
+    if _vehicle_status_blocks_assignment(vehicle):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Vehicle is not currently available for assignment.",
+        )
+
+    if _has_time_conflict(load, scheduled_loads):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Vehicle already has a scheduled load in this time window.",
+        )
+
+    if not _has_enough_capacity(vehicle, load):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Vehicle capacity is not sufficient for this load.",
+        )
+
+    if not _has_dimensional_fit(vehicle, load):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Shipment dimensions exceed the vehicle trailer dimensions.",
+        )
+
+
 @router.get("/open", response_model=list[LoadResponse])
 def get_open_loads(_: CurrentUser = Depends(get_current_user)) -> list[LoadResponse]:
     try:
@@ -134,6 +268,23 @@ def assign_load(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Vehicle not found for this carrier.",
         )
+
+    load = _get_load_or_404(load_id)
+    if load.get("status") != "open":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Load is no longer open.",
+        )
+
+    try:
+        scheduled_loads = supabase_client.list_active_loads_for_vehicle(vehicle["id"])
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+    _validate_vehicle_can_take_load(vehicle, load, scheduled_loads)
 
     carrier_label = None
     if user.email and "@" in user.email:

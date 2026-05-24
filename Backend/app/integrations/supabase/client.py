@@ -93,7 +93,7 @@ class SupabaseClient:
             response = client.get(
                 f"{self.url}/rest/v1/vehicles",
                 params={
-                    "select": "id,unit_id,owner_id,model",
+                    "select": "id,unit_id,owner_id,model,status,capacity_t,trailers",
                     "id": f"eq.{vehicle_id}",
                     "owner_id": f"eq.{owner_id}",
                     "limit": "1",
@@ -108,6 +108,24 @@ class SupabaseClient:
             if isinstance(first, dict):
                 return first
         return None
+
+    def list_active_loads_for_vehicle(self, vehicle_id: str) -> list[dict[str, Any]]:
+        self._ensure_configured()
+
+        with httpx.Client(timeout=self.timeout_seconds) as client:
+            response = client.get(
+                f"{self.url}/rest/v1/loads",
+                params={
+                    "select": "id,assigned_vehicle_id,pickup_time,dropoff_time,status",
+                    "assigned_vehicle_id": f"eq.{vehicle_id}",
+                    "status": "in.(scheduled,in_transit)",
+                },
+                headers=self._service_headers(),
+            )
+
+        self._raise_for_error(response, "Could not fetch vehicle schedule")
+        data = response.json()
+        return data if isinstance(data, list) else []
 
     def assign_open_load(
         self, load_id: str, assignment_payload: dict[str, Any]
