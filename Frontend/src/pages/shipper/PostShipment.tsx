@@ -5,7 +5,7 @@ import { createLoad, suggestPrice } from "@/lib/loads-api";
 import { LocationPickerDialog } from "@/components/LocationPickerDialog";
 import { AddressAutocompleteInput } from "@/components/AddressAutocompleteInput";
 import { LoadMindLoader } from "@/components/LoadMindLoader";
-import { Package, MapPin, FileImage, Upload, ArrowRight } from "lucide-react";
+import { Package, MapPin, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { DRY_GOODS_CATEGORIES } from "@/lib/dry-goods";
 
@@ -21,6 +21,7 @@ export default function PostShipment() {
     length: "",
     width: "",
     height: "",
+    notes: "",
     origin: "",
     destination: "",
     pickupTime: "",
@@ -39,7 +40,7 @@ export default function PostShipment() {
 
   const formatAudPrice = (value: number) => `AUD ${Math.round(value).toLocaleString("en-AU")}`;
 
-  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const setValue = (k: keyof typeof form, value: string) => {
@@ -72,8 +73,9 @@ export default function PostShipment() {
     setBusy(true);
     try {
       const weight = Number(form.weight) || 0;
+      const cargoDescription = [form.cargo.trim(), form.notes.trim()].filter(Boolean).join(" - ");
       await createLoad({
-        cargo: form.cargo,
+        cargo: cargoDescription,
         origin: form.origin,
         destination: form.destination,
         weight_kg: weight,
@@ -185,6 +187,17 @@ export default function PostShipment() {
               <Field label="W (cm)"><input value={form.width} onChange={set("width")} className="loadmind-input" /></Field>
               <Field label="H (cm)"><input value={form.height} onChange={set("height")} className="loadmind-input" /></Field>
             </div>
+            <div className="sm:col-span-2">
+              <Field label="Additional Load Notes">
+                <textarea
+                  value={form.notes}
+                  onChange={set("notes")}
+                  placeholder="Optional handling notes, packaging details, pallet count, or delivery instructions."
+                  maxLength={240}
+                  className="loadmind-input loadmind-textarea"
+                />
+              </Field>
+            </div>
           </div>
         </Section>
 
@@ -261,18 +274,6 @@ export default function PostShipment() {
               setLocationPicker(null);
             }}
           />
-        </Section>
-
-        {/* 3 — Documentation */}
-        <Section number="03" icon={FileImage} title="Cargo Documentation">
-          <div className="grid sm:grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => (
-              <button type="button" key={i} className="aspect-[4/3] surface-3 rounded-md flex flex-col items-center justify-center gap-2 text-muted-foreground hover:text-primary hover:lift-shadow transition">
-                <Upload className="h-5 w-5" />
-                <span className="text-xs">Upload photo {i}</span>
-              </button>
-            ))}
-          </div>
         </Section>
 
       </form>
@@ -373,6 +374,14 @@ export default function PostShipment() {
           transition: box-shadow 0.15s ease;
         }
         .loadmind-input:focus { box-shadow: 0 0 0 2px hsl(var(--primary)); }
+        .loadmind-textarea {
+          min-height: 96px;
+          height: auto;
+          padding-top: 0.75rem;
+          padding-bottom: 0.75rem;
+          resize: vertical;
+          line-height: 1.45;
+        }
       `}</style>
     </div>
   );
