@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { NavLink } from "@/components/NavLink";
@@ -24,6 +25,7 @@ export function PortalShell({
   const { user, roles, switchRole, signOut } = useAuth();
   const nav = useNavigate();
   const location = useLocation();
+  const accountMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const carrierNav = [
     { to: "/carrier",          label: "AI Load Matcher", icon: Brain, end: true },
@@ -149,11 +151,18 @@ export function PortalShell({
                 })}
               </div>
             )}
-            <DropdownMenu>
+            <DropdownMenu
+              onOpenChange={(open) => {
+                if (!open) {
+                  window.requestAnimationFrame(() => accountMenuTriggerRef.current?.blur());
+                }
+              }}
+            >
               <DropdownMenuTrigger asChild>
                 <button
+                  ref={accountMenuTriggerRef}
                   type="button"
-                  className="flex h-10 items-center gap-2 rounded-full pl-1 pr-2 transition-colors hover:bg-muted focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  className="flex h-10 items-center gap-2 rounded-full pl-1 pr-2 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                   aria-label="Open account menu"
                 >
                   <Avatar className="h-9 w-9">
