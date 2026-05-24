@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { assignLoad, listOpenLoads } from "@/lib/loads-api";
-import { CheckCircle2, ArrowRight, Filter, Search, MapPin, Gauge, Truck, ChevronDown, type LucideIcon } from "lucide-react";
+import { CheckCircle2, ArrowRight, Search, MapPin, Gauge, Truck, ChevronDown, type LucideIcon } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { LoadRouteMap } from "@/components/LoadRouteMap";
 import { LoadMindLoader } from "@/components/LoadMindLoader";
@@ -71,7 +71,6 @@ export default function AIMatcher() {
   const [assignedLoads, setAssignedLoads] = useState<AssignedLoad[]>([]);
   const [loadsLoading, setLoadsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [weightFilter, setWeightFilter] = useState<WeightFilter>("all");
   const [onlyAvailable, setOnlyAvailable] = useState(false);
@@ -221,81 +220,56 @@ export default function AIMatcher() {
 
       <div className="space-y-4">
         {/* Search */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 surface-2 h-9 px-3 rounded-md flex-1 min-w-[180px]">
+        <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[minmax(180px,0.85fr)_190px_130px_150px_auto]">
+          <div className="flex h-9 min-w-0 items-center gap-2 rounded-md surface-2 px-3">
             <Search className="h-3.5 w-3.5 text-muted-foreground" />
             <input
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
               placeholder="Search lane, type, item…"
-              className="bg-transparent outline-none text-sm w-full"
+              className="w-full bg-transparent text-sm outline-none"
             />
           </div>
+          <select
+            value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value)}
+            className="h-9 w-full rounded-md surface-2 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+            aria-label="Filter by category"
+          >
+            <option value="all">All dry goods</option>
+            {DRY_GOODS_CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+          <select
+            value={weightFilter}
+            onChange={(event) => setWeightFilter(event.target.value as WeightFilter)}
+            className="h-9 w-full rounded-md surface-2 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+            aria-label="Filter by weight"
+          >
+            <option value="all">All weights</option>
+            <option value="under_5">Under 5 t</option>
+            <option value="5_to_15">5-15 t</option>
+            <option value="15_plus">15 t+</option>
+          </select>
+          <label className="flex h-9 items-center gap-2 rounded-md surface-2 px-3 text-sm font-semibold">
+            <input
+              type="checkbox"
+              checked={onlyAvailable}
+              onChange={(event) => setOnlyAvailable(event.target.checked)}
+            />
+            Available truck
+          </label>
           <button
             type="button"
-            onClick={() => setFiltersOpen((current) => !current)}
-            aria-expanded={filtersOpen}
-            className="h-9 px-3 rounded-md surface-2 text-sm flex items-center gap-2 hover:surface-3"
+            onClick={resetFilters}
+            className="h-9 rounded-md px-3 text-sm font-semibold text-muted-foreground hover:bg-background/60 hover:text-foreground"
           >
-            <Filter className="h-3.5 w-3.5" />
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="ml-1 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">
-                {activeFilterCount}
-              </span>
-            )}
+            Reset{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
           </button>
         </div>
-
-        {filtersOpen && (
-          <div className="surface-2 rounded-xl p-4 ghost-shadow">
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] md:items-end">
-              <label className="block">
-                <div className="label-eyebrow mb-2">Category</div>
-                <select
-                  value={categoryFilter}
-                  onChange={(event) => setCategoryFilter(event.target.value)}
-                  className="h-10 w-full rounded-md surface-3 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="all">All dry goods</option>
-                  {DRY_GOODS_CATEGORIES.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="block">
-                <div className="label-eyebrow mb-2">Weight</div>
-                <select
-                  value={weightFilter}
-                  onChange={(event) => setWeightFilter(event.target.value as WeightFilter)}
-                  className="h-10 w-full rounded-md surface-3 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="all">All weights</option>
-                  <option value="under_5">Under 5 t</option>
-                  <option value="5_to_15">5-15 t</option>
-                  <option value="15_plus">15 t+</option>
-                </select>
-              </label>
-              <label className="flex h-10 items-center gap-2 rounded-md surface-3 px-3 text-sm font-semibold">
-                <input
-                  type="checkbox"
-                  checked={onlyAvailable}
-                  onChange={(event) => setOnlyAvailable(event.target.checked)}
-                />
-                Has available truck
-              </label>
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="h-10 rounded-md px-3 text-sm font-semibold text-muted-foreground hover:bg-background/60 hover:text-foreground"
-              >
-                Reset
-              </button>
-            </div>
-          </div>
-        )}
 
         {loadsLoading && (
           <div className="surface-2 rounded-xl p-4 ghost-shadow">
