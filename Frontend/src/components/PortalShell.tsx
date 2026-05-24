@@ -53,24 +53,24 @@ export function PortalShell({
       {/* Sidebar */}
       <aside className="hidden h-screen w-64 shrink-0 flex-col surface-1 md:flex">
         <div className="p-6">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-md grid place-items-center" style={{ background: "var(--gradient-primary)" }}>
-              <Truck className="h-4 w-4 text-primary-foreground" />
+          <div className="flex items-center gap-3.5">
+            <div className="h-11 w-11 rounded-md grid place-items-center" style={{ background: "var(--gradient-primary)" }}>
+              <Truck className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <div className="font-display font-bold text-base leading-tight">LoadMind</div>
-              <div className="text-[11px] text-muted-foreground">{hub}</div>
+              <div className="font-display font-bold text-lg leading-tight">LoadMind</div>
+              <div className="text-xs text-muted-foreground">{hub}</div>
             </div>
           </div>
         </div>
 
         <nav className="relative flex-1 overflow-y-auto px-3">
           <div
-            className="absolute left-3 right-3 top-0 h-10 rounded-md bg-white lift-shadow transition-transform duration-300 ease-out"
-            style={{ transform: `translateY(${activeIndex * 44}px)` }}
+            className="absolute left-3 right-3 top-0 h-[55px] rounded-md bg-white lift-shadow transition-transform duration-300 ease-out"
+            style={{ transform: `translateY(${activeIndex * 63}px)` }}
             aria-hidden="true"
           />
-          <div className="relative z-10 space-y-1">
+          <div className="relative z-10 space-y-2">
           {items.map((it) => {
             const Icon = it.icon;
             return (
@@ -78,10 +78,10 @@ export function PortalShell({
                 key={it.to}
                 to={it.to}
                 end={it.end}
-                className="group relative flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground"
+                className="group relative flex h-[55px] items-center gap-3.5 rounded-md px-4 text-[15px] font-semibold text-muted-foreground transition-colors duration-200 hover:text-foreground"
                 activeClassName="text-primary [&_.nav-icon]:scale-110 [&_.nav-icon]:text-primary"
               >
-                <Icon className="nav-icon h-4 w-4 shrink-0 transition-all duration-200 group-hover:scale-110" />
+                <Icon className="nav-icon h-5 w-5 shrink-0 transition-all duration-200 group-hover:scale-110" />
                 <span className="relative z-10">{it.label}</span>
               </NavLink>
             );
@@ -92,9 +92,9 @@ export function PortalShell({
         <div className="shrink-0 border-t border-border/60 p-3 space-y-2">
           <button
             onClick={handleSignOut}
-            className="btn-action w-full h-10 rounded-md text-sm font-semibold flex items-center justify-center gap-2"
+            className="btn-action w-full h-[55px] rounded-md text-[15px] font-semibold flex items-center justify-center gap-3.5"
           >
-            <LogOut className="h-4 w-4" /> Sign out
+            <LogOut className="h-5 w-5" /> Sign out
           </button>
         </div>
       </aside>
