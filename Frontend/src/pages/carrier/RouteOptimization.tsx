@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { FleetMap, type RouteStopPoint, type TruckPoint } from "@/components/FleetMap";
 import { AddressAutocompleteInput } from "@/components/AddressAutocompleteInput";
+import { LocationPickerDialog } from "@/components/LocationPickerDialog";
 import { geocode, type LatLng } from "@/lib/geocode";
 import { geocodeLocation } from "@/lib/geo";
 import {
@@ -74,6 +75,7 @@ export default function RouteOptimization() {
   const [stops, setStops] = useState<Stop[]>([]);
   const [endStop, setEndStop] = useState<string>("");
   const [customInput, setCustomInput] = useState("");
+  const [locationPicker, setLocationPicker] = useState<"custom" | "end" | null>(null);
   const [loadPickerId, setLoadPickerId] = useState<string>("");
   const [optimizing, setOptimizing] = useState(false);
   const [result, setResult] = useState<OptimizedResult | null>(null);
@@ -389,7 +391,7 @@ export default function RouteOptimization() {
                 <button
                   onClick={addLoadStops}
                   disabled={!loadPickerId || stops.length + 2 > MAX_STOPS}
-                  className="h-9 px-3 rounded-md btn-action text-sm font-semibold flex items-center gap-1 disabled:opacity-40"
+                  className="h-9 w-[68px] shrink-0 rounded-md btn-action text-sm font-semibold flex items-center justify-center gap-1 disabled:opacity-40"
                 >
                   <Plus className="h-3.5 w-3.5" /> Add
                 </button>
@@ -398,19 +400,26 @@ export default function RouteOptimization() {
 
             <div className="space-y-2">
               <div className="text-xs text-muted-foreground">Custom stop</div>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-[minmax(0,1fr)_72px_68px] gap-2">
                 <AddressAutocompleteInput
                   value={customInput}
                   onChange={setCustomInput}
                   onKeyDown={(e) => e.key === "Enter" && addCustomStop()}
                   placeholder="City, State"
                   showSuggestionIcon={false}
-                  className="surface-3 h-9 px-3 rounded-md text-sm flex-1 min-w-0 outline-none"
+                  className="surface-3 h-9 px-3 rounded-md text-sm min-w-0 outline-none"
                 />
+                <button
+                  type="button"
+                  onClick={() => setLocationPicker("custom")}
+                  className="h-9 w-[72px] shrink-0 rounded-md surface-3 text-sm font-semibold flex items-center justify-center gap-1.5 hover:lift-shadow"
+                >
+                  <MapPin className="h-3.5 w-3.5" /> Map
+                </button>
                 <button
                   onClick={addCustomStop}
                   disabled={!customInput.trim() || stops.length >= MAX_STOPS}
-                  className="h-9 px-3 rounded-md btn-action text-sm font-semibold flex items-center gap-1 disabled:opacity-40"
+                  className="h-9 w-[68px] shrink-0 rounded-md btn-action text-sm font-semibold flex items-center justify-center gap-1 disabled:opacity-40"
                 >
                   <Plus className="h-3.5 w-3.5" /> Add
                 </button>
@@ -456,14 +465,44 @@ export default function RouteOptimization() {
             <p className="text-xs text-muted-foreground">
               Locked as the final destination. Order of other stops will be optimized between truck and this end point.
             </p>
-            <AddressAutocompleteInput
-              value={endStop}
-              onChange={(value) => { setEndStop(value); setResult(null); }}
-              placeholder="City, State (e.g. Sydney, NSW)"
-              showSuggestionIcon={false}
-              className="surface-3 h-9 px-3 rounded-md text-sm w-full outline-none"
-            />
+            <div className="relative">
+              <AddressAutocompleteInput
+                value={endStop}
+                onChange={(value) => { setEndStop(value); setResult(null); }}
+                placeholder="City, State (e.g. Sydney, NSW)"
+                showSuggestionIcon={false}
+                className="surface-3 h-9 w-full rounded-md px-3 pr-[5.25rem] text-sm outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setLocationPicker("end")}
+                className="absolute right-1 top-1 h-7 rounded-[4px] px-2.5 text-xs font-semibold flex items-center gap-1.5 transition hover:bg-primary/10 hover:text-primary"
+              >
+                <MapPin className="h-3.5 w-3.5" /> Map
+              </button>
+            </div>
           </section>
+
+          <LocationPickerDialog
+            open={locationPicker === "custom"}
+            onOpenChange={(open) => !open && setLocationPicker(null)}
+            value={customInput}
+            onConfirm={(location) => {
+              setCustomInput(location);
+              setLocationPicker(null);
+              setResult(null);
+            }}
+          />
+          <LocationPickerDialog
+            open={locationPicker === "end"}
+            onOpenChange={(open) => !open && setLocationPicker(null)}
+            value={endStop}
+            onConfirm={(location) => {
+              setEndStop(location);
+              setLocationPicker(null);
+              setResult(null);
+            }}
+          />
         </div>
 
         {/* RIGHT — Map + Result */}
