@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { assignLoad, listOpenLoads } from "@/lib/loads-api";
 import { CheckCircle2, ArrowRight, Filter, Search, MapPin, Gauge, Truck, ChevronDown, type LucideIcon } from "lucide-react";
@@ -6,6 +6,7 @@ import { toast } from "@/hooks/use-toast";
 import { LoadRouteMap } from "@/components/LoadRouteMap";
 import { LoadMindLoader } from "@/components/LoadMindLoader";
 import { normalizeDryGoodsCategory } from "@/lib/dry-goods";
+import { useAuth } from "@/lib/auth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,11 +43,30 @@ type Vehicle = {
   model: string;
   status: string;
   location: string | null;
+  capacity_t: number;
+  trailers?: Trailer[] | null;
+};
+
+type Trailer = {
+  length_m?: number | null;
+  width_m?: number | null;
+  height_m?: number | null;
+  capacity_t?: number | null;
+};
+
+type AssignedLoad = {
+  id: string;
+  assigned_vehicle_id: string | null;
+  pickup_time: string;
+  dropoff_time: string;
+  status: string;
 };
 
 export default function AIMatcher() {
+  const { user } = useAuth();
   const [loads, setLoads] = useState<Load[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [assignedLoads, setAssignedLoads] = useState<AssignedLoad[]>([]);
   const [loadsLoading, setLoadsLoading] = useState(true);
 
   useEffect(() => {
@@ -74,8 +94,8 @@ export default function AIMatcher() {
           if (!cancelled) setLoadsLoading(false);
         }, 360);
       });
-    supabase.from("vehicles").select("id, unit_id, model, status, location").order("unit_id")
-      .then(({ data }) => setVehicles((data ?? []) as Vehicle[]));
+    supabase.from("vehicles").select("id, unit_id, model, status, location, capacity_t, trailers").order("unit_id")
+      .then(({ data }) => setVehicles((data ?? []) as unknown as Vehicle[]));
 
     return () => {
       cancelled = true;
@@ -83,12 +103,43 @@ export default function AIMatcher() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!user) {
+      setAssignedLoads([]);
+      return;
+    }
+
+    supabase
+      .from("loads")
+      .select("id, assigned_vehicle_id, pickup_time, dropoff_time, status")
+      .eq("assigned_carrier_id", user.id)
+      .in("status", ["scheduled", "in_transit"])
+      .then(({ data }) => setAssignedLoads((data ?? []) as AssignedLoad[]));
+  }, [user]);
+
   const filtered = loads;
+  const assignedLoadsByVehicle = useMemo(() => {
+    return assignedLoads.reduce<Record<string, AssignedLoad[]>>((acc, load) => {
+      if (!load.assigned_vehicle_id) return acc;
+      acc[load.assigned_vehicle_id] = [...(acc[load.assigned_vehicle_id] ?? []), load];
+      return acc;
+    }, {});
+  }, [assignedLoads]);
 
   const handleAssign = async (load: Load, vehicle: Vehicle) => {
     try {
       await assignLoad(load.id, { vehicle_id: vehicle.id });
       setLoads((current) => current.filter((x) => x.id !== load.id));
+      setAssignedLoads((current) => [
+        ...current,
+        {
+          id: load.id,
+          assigned_vehicle_id: vehicle.id,
+          pickup_time: load.pickup_time,
+          dropoff_time: load.dropoff_time,
+          status: "scheduled",
+        },
+      ]);
       toast({
         title: "Load assigned",
         description: `${formatLoadLocation(load.origin)} → ${formatLoadLocation(load.destination)} dispatched to ${vehicle.unit_id} (${vehicle.model}).`,
@@ -144,6 +195,7 @@ export default function AIMatcher() {
             const mapDestination = formatLoadLocation(l.route_destination || l.destination);
             const displayCategory = normalizeDryGoodsCategory(l.load_type);
             const itemDescription = formatCargoDescription(l.cargo, displayCategory);
+            const eligibleVehicles = vehicles.filter((v) => isVehicleEligibleForLoad(v, l, assignedLoadsByVehicle[v.id] ?? []));
 
             return (
             <article key={l.id} className="surface-2 rounded-xl p-6 ghost-shadow flex flex-col gap-4">
@@ -215,7 +267,12 @@ export default function AIMatcher() {
                         No vehicles registered yet.
                       </div>
                     )}
-                    {vehicles.map((v) => (
+                    {vehicles.length > 0 && eligibleVehicles.length === 0 && (
+                      <div className="px-2 py-3 text-xs text-muted-foreground">
+                        No theoretically available trucks for this load.
+                      </div>
+                    )}
+                    {eligibleVehicles.map((v) => (
                       <DropdownMenuItem
                         key={v.id}
                         onClick={() => handleAssign(l, v)}
@@ -277,6 +334,85 @@ function formatLoadLocation(value: string) {
 function formatCargoDescription(value: string | null | undefined, fallbackCategory: string) {
   const raw = (value ?? "").trim();
   return raw || fallbackCategory;
+}
+
+function isVehicleEligibleForLoad(vehicle: Vehicle, load: Load, vehicleLoads: AssignedLoad[]) {
+  if (isVehicleUnavailableByStatus(vehicle.status)) return false;
+  if (vehicleHasTimeConflict(load, vehicleLoads)) return false;
+  if (!vehicleHasCapacity(vehicle, load)) return false;
+  if (!vehicleHasDimensionalFit(vehicle, load)) return false;
+  return true;
+}
+
+function isVehicleUnavailableByStatus(status: string) {
+  const normalized = status.trim().toLowerCase();
+  return ["maintenance", "offline", "retired", "unavailable", "decommissioned"].includes(normalized);
+}
+
+function vehicleHasTimeConflict(load: Load, vehicleLoads: AssignedLoad[]) {
+  const loadStart = Date.parse(load.pickup_time);
+  const loadEnd = Date.parse(load.dropoff_time);
+  if (!Number.isFinite(loadStart) || !Number.isFinite(loadEnd)) return true;
+
+  return vehicleLoads.some((scheduled) => {
+    const scheduledStart = Date.parse(scheduled.pickup_time);
+    const scheduledEnd = Date.parse(scheduled.dropoff_time);
+    if (!Number.isFinite(scheduledStart) || !Number.isFinite(scheduledEnd)) return true;
+    return loadStart < scheduledEnd && scheduledStart < loadEnd;
+  });
+}
+
+function vehicleHasCapacity(vehicle: Vehicle, load: Load) {
+  const vehicleCapacityKg = Number(vehicle.capacity_t) * 1000;
+  return Number.isFinite(vehicleCapacityKg) && vehicleCapacityKg >= Number(load.weight_kg);
+}
+
+function vehicleHasDimensionalFit(vehicle: Vehicle, load: Load) {
+  const required = {
+    length_cm: numericDimension(load.length_cm),
+    width_cm: numericDimension(load.width_cm),
+    height_cm: numericDimension(load.height_cm),
+  };
+  const hasRequiredDimensions = Object.values(required).some((value) => value != null);
+  if (!hasRequiredDimensions) return true;
+
+  const trailers = Array.isArray(vehicle.trailers) ? vehicle.trailers : [];
+  const trailersWithDimensions = trailers.filter((trailer) =>
+    numericDimension(trailer.length_m) != null ||
+    numericDimension(trailer.width_m) != null ||
+    numericDimension(trailer.height_m) != null
+  );
+
+  if (trailersWithDimensions.length === 0) return true;
+
+  return trailersWithDimensions.some((trailer) => {
+    const available = {
+      length_cm: metersToCentimeters(trailer.length_m),
+      width_cm: metersToCentimeters(trailer.width_m),
+      height_cm: metersToCentimeters(trailer.height_m),
+    };
+
+    return dimensionFits(required.length_cm, available.length_cm) &&
+      dimensionFits(required.width_cm, available.width_cm) &&
+      dimensionFits(required.height_cm, available.height_cm);
+  });
+}
+
+function numericDimension(value: number | string | null | undefined) {
+  if (value == null || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+}
+
+function metersToCentimeters(value: number | string | null | undefined) {
+  const meters = numericDimension(value);
+  return meters == null ? null : meters * 100;
+}
+
+function dimensionFits(required: number | null, available: number | null) {
+  if (required == null) return true;
+  if (available == null) return true;
+  return available >= required;
 }
 
 function Stat({ k, v, accent }: { k: string; v: string; accent?: boolean }) {
