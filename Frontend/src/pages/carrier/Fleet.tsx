@@ -558,7 +558,7 @@ function RegisterVehicleDialog({
                 <button
                   type="button"
                   onClick={() => setLocationPickerOpen(true)}
-                  className="h-7 px-2.5 rounded-md surface-3 text-xs font-semibold flex items-center gap-1.5 hover:lift-shadow"
+                  className="absolute right-1 top-1 h-8 rounded-[4px] px-2.5 text-xs font-semibold flex items-center gap-1.5 transition hover:bg-primary/10 hover:text-primary"
                 >
                   <MapPin className="h-3.5 w-3.5" /> Map
                 </button>
@@ -708,18 +708,21 @@ function Field({
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
         <label className="label-eyebrow block">{label}</label>
-        {action}
+        {!addressAutocomplete && action}
       </div>
       {addressAutocomplete ? (
-        <AddressAutocompleteInput
-          value={value}
-          placeholder={placeholder}
-          maxLength={maxLength}
-          onChange={onChange}
-          className={`w-full h-10 px-3 rounded-md surface-3 text-sm outline-none ring-1 ring-transparent focus:ring-primary transition ${
-            error ? "ring-destructive focus:ring-destructive" : ""
-          }`}
-        />
+        <div className="relative">
+          <AddressAutocompleteInput
+            value={value}
+            placeholder={placeholder}
+            maxLength={maxLength}
+            onChange={onChange}
+            className={`w-full h-10 px-3 rounded-md surface-3 text-sm outline-none ring-1 ring-transparent focus:ring-primary transition ${
+              action ? "pr-[5.25rem]" : ""
+            } ${error ? "ring-destructive focus:ring-destructive" : ""}`}
+          />
+          {action}
+        </div>
       ) : (
         <input
           type={type}
