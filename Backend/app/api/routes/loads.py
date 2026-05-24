@@ -173,6 +173,86 @@ def assign_load(
     return LoadResponse.model_validate(row)
 
 
+@router.post("/{load_id}/cancel", response_model=LoadResponse)
+def cancel_open_load(
+    load_id: str,
+    user: CurrentUser = Depends(get_current_user),
+) -> LoadResponse:
+    load = _get_load_or_404(load_id)
+
+    if load.get("shipper_id") != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the shipper who posted this load can cancel it.",
+        )
+
+    if load.get("status") != "open":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only open marketplace listings can be cancelled.",
+        )
+
+    try:
+        row = supabase_client.update_load(
+            load_id=load_id,
+            expected_status="open",
+            payload={"status": "cancelled"},
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Load is no longer open.",
+        )
+
+    return LoadResponse.model_validate(row)
+
+
+@router.post("/{load_id}/restore", response_model=LoadResponse)
+def restore_cancelled_load(
+    load_id: str,
+    user: CurrentUser = Depends(get_current_user),
+) -> LoadResponse:
+    load = _get_load_or_404(load_id)
+
+    if load.get("shipper_id") != user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the shipper who posted this load can restore it.",
+        )
+
+    if load.get("status") != "cancelled":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only cancelled marketplace listings can be restored.",
+        )
+
+    try:
+        row = supabase_client.update_load(
+            load_id=load_id,
+            expected_status="cancelled",
+            payload={"status": "open"},
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        ) from exc
+
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Load is no longer cancelled.",
+        )
+
+    return LoadResponse.model_validate(row)
+
+
 @router.post("/{load_id}/confirm-pickup", response_model=LoadResponse)
 def confirm_pickup(
     load_id: str,

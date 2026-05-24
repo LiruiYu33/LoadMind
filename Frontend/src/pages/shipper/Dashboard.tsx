@@ -1,10 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
-import { confirmLoadDelivery, confirmLoadPickup } from "@/lib/loads-api";
+import { cancelLoadListing, confirmLoadDelivery, confirmLoadPickup, restoreLoadListing } from "@/lib/loads-api";
 import { toast } from "@/hooks/use-toast";
 import { normalizeDryGoodsCargo, normalizeDryGoodsCategory } from "@/lib/dry-goods";
 import { LoadMindLoader } from "@/components/LoadMindLoader";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type Shipment = {
   id: string;
@@ -54,9 +64,14 @@ export default function ShipperDashboard() {
   const { user } = useAuth();
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [postedLoads, setPostedLoads] = useState<MarketplaceLoad[]>([]);
+  const [cancelledLoads, setCancelledLoads] = useState<MarketplaceLoad[]>([]);
+  const [cancelDialogLoad, setCancelDialogLoad] = useState<MarketplaceLoad | null>(null);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
   const [activeLoading, setActiveLoading] = useState(true);
   const [postedLoading, setPostedLoading] = useState(true);
+  const [cancelledLoading, setCancelledLoading] = useState(true);
 
   const refreshActive = useCallback(() => {
     if (!user) {
@@ -130,6 +145,40 @@ export default function ShipperDashboard() {
     };
   }, [user]);
 
+  useEffect(() => {
+    if (!user) {
+      setCancelledLoads([]);
+      setCancelledLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    let completionTimer: number | undefined;
+    setCancelledLoading(true);
+
+    supabase
+      .from("loads")
+      .select("id, cargo, origin, destination, load_type, pickup_time, dropoff_time, status, value, created_at")
+      .eq("shipper_id", user.id)
+      .eq("status", "cancelled")
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        if (cancelled) return;
+        setCancelledLoads((data ?? []) as MarketplaceLoad[]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        completionTimer = window.setTimeout(() => {
+          if (!cancelled) setCancelledLoading(false);
+        }, 360);
+      });
+
+    return () => {
+      cancelled = true;
+      if (completionTimer) window.clearTimeout(completionTimer);
+    };
+  }, [user]);
+
   const active = useMemo<ActiveRow[]>(() => {
     return shipments
       .filter((s) => s.status === "scheduled" || s.status === "in_transit")
@@ -172,6 +221,49 @@ export default function ShipperDashboard() {
       });
     } finally {
       setActingId(null);
+    }
+  };
+
+  const handleCancelListing = async (load: MarketplaceLoad) => {
+    setCancellingId(load.id);
+    try {
+      await cancelLoadListing(load.id);
+      setPostedLoads((current) => current.filter((item) => item.id !== load.id));
+      setCancelledLoads((current) => [{ ...load, status: "cancelled" }, ...current]);
+      setCancelDialogLoad(null);
+      toast({
+        title: "Listing cancelled",
+        description: "The open load has been removed from the carrier marketplace.",
+      });
+    } catch (err: unknown) {
+      toast({
+        title: "Could not cancel listing",
+        description: err instanceof Error ? err.message : "Please refresh and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  const handleRestoreListing = async (load: MarketplaceLoad) => {
+    setRestoringId(load.id);
+    try {
+      await restoreLoadListing(load.id);
+      setCancelledLoads((current) => current.filter((item) => item.id !== load.id));
+      setPostedLoads((current) => [{ ...load, status: "open" }, ...current]);
+      toast({
+        title: "Listing restored",
+        description: "The load is visible to carriers in the marketplace again.",
+      });
+    } catch (err: unknown) {
+      toast({
+        title: "Could not restore listing",
+        description: err instanceof Error ? err.message : "Please refresh and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setRestoringId(null);
     }
   };
 
@@ -271,8 +363,9 @@ export default function ShipperDashboard() {
                   "Dropoff",
                   "Status",
                   "Value",
+                  "Action",
                 ].map((h, i) => (
-                  <th key={h} className={`label-eyebrow font-semibold text-muted-foreground py-3 px-6 ${i === 5 ? "text-right" : ""}`}>
+                  <th key={h} className={`label-eyebrow font-semibold text-muted-foreground py-3 px-6 ${i >= 5 ? "text-right" : ""}`}>
                     {h}
                   </th>
                 ))}
@@ -302,11 +395,21 @@ export default function ShipperDashboard() {
                   <td className="px-6 py-4 text-right font-display font-semibold font-mono-data">
                     ${Number(l.value).toLocaleString()}
                   </td>
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      type="button"
+                      onClick={() => setCancelDialogLoad(l)}
+                      disabled={cancellingId === l.id}
+                      className="h-9 px-3 rounded-md surface-2 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                    >
+                      {cancellingId === l.id ? "Cancelling..." : "Cancel listing"}
+                    </button>
+                  </td>
                 </tr>
               ))}
               {!postedLoading && postedLoads.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                  <td colSpan={7} className="px-6 py-8 text-center text-sm text-muted-foreground">
                     No posted marketplace loads yet.
                   </td>
                 </tr>
@@ -315,6 +418,117 @@ export default function ShipperDashboard() {
           </table>
         </div>
       </section>
+
+      {/* Cancelled marketplace loads that can be restored */}
+      <section className="surface-2 rounded-xl ghost-shadow overflow-hidden">
+        <div className="p-6 flex items-end justify-between">
+          <div>
+            <div className="label-eyebrow">CANCELLED LISTINGS</div>
+            <h2 className="font-display text-xl font-bold mt-0.5">Restore to Marketplace</h2>
+          </div>
+        </div>
+
+        {cancelledLoading && <LoadingProgress label="Loading cancelled listings" />}
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="surface-3">
+              <tr className="text-left">
+                {[
+                  "Item & Route",
+                  "Type",
+                  "Pickup",
+                  "Dropoff",
+                  "Status",
+                  "Value",
+                  "Action",
+                ].map((h, i) => (
+                  <th key={h} className={`label-eyebrow font-semibold text-muted-foreground py-3 px-6 ${i >= 5 ? "text-right" : ""}`}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {cancelledLoads.map((l, idx) => (
+                <tr key={l.id} className={idx % 2 === 0 ? "bg-surface-lowest" : ""}>
+                  <td className="px-6 py-4">
+                    <div className="font-display font-semibold">
+                      {normalizeDryGoodsCargo(l.cargo, l.load_type)}
+                    </div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      {l.origin} → {l.destination}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">{normalizeDryGoodsCategory(l.load_type)}</td>
+                  <td className="px-6 py-4 text-muted-foreground">
+                    {new Date(l.pickup_time).toLocaleString("en-AU", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </td>
+                  <td className="px-6 py-4 text-muted-foreground">
+                    {new Date(l.dropoff_time).toLocaleString("en-AU", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="pill">Cancelled</span>
+                  </td>
+                  <td className="px-6 py-4 text-right font-display font-semibold font-mono-data">
+                    ${Number(l.value).toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <button
+                      type="button"
+                      onClick={() => handleRestoreListing(l)}
+                      disabled={restoringId === l.id}
+                      className="h-9 px-3 rounded-md surface-2 text-xs font-semibold text-primary hover:bg-primary/10 disabled:opacity-50"
+                    >
+                      {restoringId === l.id ? "Restoring..." : "Restore listing"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {!cancelledLoading && cancelledLoads.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-6 py-8 text-center text-sm text-muted-foreground">
+                    No cancelled listings.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <AlertDialog open={!!cancelDialogLoad} onOpenChange={(open) => !open && setCancelDialogLoad(null)}>
+        <AlertDialogContent className="surface-2 border-border/70 text-left shadow-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display text-xl">Cancel marketplace listing?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will hide the load from carriers. You can restore it later from Cancelled Listings.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {cancelDialogLoad && (
+            <div className="rounded-lg surface-3 p-4 text-sm">
+              <div className="font-display font-semibold">
+                {normalizeDryGoodsCargo(cancelDialogLoad.cargo, cancelDialogLoad.load_type)}
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {cancelDialogLoad.origin} → {cancelDialogLoad.destination}
+              </div>
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!cancellingId}>Keep listing</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!cancelDialogLoad || cancellingId === cancelDialogLoad.id}
+              onClick={() => {
+                if (cancelDialogLoad) void handleCancelListing(cancelDialogLoad);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {cancelDialogLoad && cancellingId === cancelDialogLoad.id ? "Cancelling..." : "Cancel listing"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );
