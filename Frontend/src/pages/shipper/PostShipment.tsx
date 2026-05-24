@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { createLoad, suggestPrice } from "@/lib/loads-api";
 import { LocationPickerDialog } from "@/components/LocationPickerDialog";
 import { AddressAutocompleteInput } from "@/components/AddressAutocompleteInput";
+import { LoadMindLoader } from "@/components/LoadMindLoader";
 import { Package, MapPin, FileImage, Upload, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { DRY_GOODS_CATEGORIES } from "@/lib/dry-goods";
@@ -159,9 +160,9 @@ export default function PostShipment() {
         <p className="text-sm text-muted-foreground mt-1.5">List freight to LoadMind's verified carrier marketplace.</p>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,880px)_340px] items-start">
+      <div className="grid gap-6 items-start">
         <div className="min-w-0">
-          <form id="post-shipment-form" onSubmit={submit} className="space-y-6 w-full max-w-3xl">
+          <form id="post-shipment-form" onSubmit={submit} className="space-y-6 w-full">
         
         {/* 1 — Cargo */}
         <Section number="01" icon={Package} title="Cargo Details">
@@ -277,13 +278,24 @@ export default function PostShipment() {
       </form>
         </div>
 
-        <aside className="w-full xl:sticky xl:top-6 space-y-4">
+        <aside className="w-full space-y-4">
           <div className="surface-2 rounded-xl ghost-shadow p-6">
             <div className="font-display text-sm font-bold mb-2">PRICE INSIGHTS</div>
             <div className="text-xs text-muted-foreground mb-3">Suggested Marketplace Price</div>
             <div className="mb-4 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Suggested price</div>
-              <div className="mt-1 text-3xl font-display font-bold text-foreground">{suggestedPriceLabel}</div>
+              {suggestionLoading ? (
+                <LoadMindLoader
+                  compact
+                  label="Calculating price"
+                  detail="AI recommendation in progress"
+                  className="min-h-[88px] py-0"
+                />
+              ) : (
+                <>
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Suggested price</div>
+                  <div className="mt-1 text-3xl font-display font-bold text-foreground">{suggestedPriceLabel}</div>
+                </>
+              )}
             </div>
             <label className="mb-3 block">
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">Edit price</div>
