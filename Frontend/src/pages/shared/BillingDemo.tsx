@@ -21,7 +21,7 @@ export function BillingDemo({ variant }: { variant: "carrier" | "shipper" }) {
         </p>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] items-start">
+      <div className="space-y-6">
         <section className="surface-2 rounded-xl ghost-shadow p-6 space-y-6">
           <div className="flex items-start gap-4">
             <div className="h-11 w-11 rounded-md grid place-items-center shrink-0" style={{ background: "var(--gradient-primary)" }}>
@@ -115,7 +115,7 @@ export function BillingDemo({ variant }: { variant: "carrier" | "shipper" }) {
           </button>
         </section>
 
-        <aside className="space-y-4">
+        <aside className="grid gap-4 md:grid-cols-4">
           <InfoCard
             icon={BadgeDollarSign}
             title={subscribed ? "5% subscribed fee" : "10% marketplace fee"}
