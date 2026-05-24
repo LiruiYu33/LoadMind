@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { FleetMap, type RouteStopPoint, type TruckPoint } from "@/components/FleetMap";
 import { geocode, type LatLng } from "@/lib/geocode";
+import { geocodeLocation } from "@/lib/geo";
 import {
   nearestNeighbor,
   pathDistanceKm,
+  haversineKm,
   type RoutePoint,
 } from "@/lib/optimizeRoute";
 import {
@@ -53,28 +55,69 @@ type OptimizedResult = {
   baselineKm: number;
   legsKm: number[];
   truckPos: LatLng;
+  roadPath: [number, number][];
 };
+
+const hasGps = (vehicle: Pick<Vehicle, "lat" | "lng"> | null | undefined) => (
+  !!vehicle
+  && vehicle.lat != null
+  && vehicle.lng != null
+  && Number.isFinite(Number(vehicle.lat))
+  && Number.isFinite(Number(vehicle.lng))
+);
 
 export default function RouteOptimization() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [loads, setLoads] = useState<Load[]>([]);
   const [selectedTruckId, setSelectedTruckId] = useState<string | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
+  const [endStop, setEndStop] = useState<string>("");
   const [customInput, setCustomInput] = useState("");
   const [loadPickerId, setLoadPickerId] = useState<string>("");
   const [optimizing, setOptimizing] = useState(false);
   const [result, setResult] = useState<OptimizedResult | null>(null);
 
   useEffect(() => {
-    supabase
-      .from("vehicles")
-      .select("*")
-      .order("unit_id")
-      .then(({ data }) => {
-        const list = (data ?? []) as Vehicle[];
-        setVehicles(list);
-        setSelectedTruckId((prev) => prev ?? list[0]?.id ?? null);
-      });
+    const loadVehicles = async () => {
+      const { data } = await supabase
+        .from("vehicles")
+        .select("*")
+        .order("unit_id");
+
+      const list = (data ?? []) as Vehicle[];
+      const updates: Array<{ id: string; lat: number; lng: number }> = [];
+
+      const enriched = await Promise.all(
+        list.map(async (vehicle) => {
+          if (hasGps(vehicle)) return vehicle;
+          const address = vehicle.location?.trim();
+          if (!address) return vehicle;
+
+          const coords = await geocodeLocation(address);
+          if (!coords) return vehicle;
+
+          updates.push({ id: vehicle.id, lat: coords.lat, lng: coords.lng });
+          return { ...vehicle, lat: coords.lat, lng: coords.lng };
+        }),
+      );
+
+      setVehicles(enriched);
+      setSelectedTruckId((prev) => prev ?? enriched[0]?.id ?? null);
+
+      if (updates.length > 0) {
+        await Promise.all(
+          updates.map((u) =>
+            supabase
+              .from("vehicles")
+              .update({ lat: u.lat, lng: u.lng })
+              .eq("id", u.id),
+          ),
+        );
+      }
+    };
+
+    loadVehicles();
+
     supabase
       .from("loads")
       .select("id,origin,destination,load_type,predicted_margin")
@@ -125,7 +168,7 @@ export default function RouteOptimization() {
   };
 
   const truckPoint: TruckPoint | null =
-    selectedTruck && selectedTruck.lat != null && selectedTruck.lng != null
+    hasGps(selectedTruck)
       ? {
           id: selectedTruck.id,
           unit_id: selectedTruck.unit_id,
@@ -141,7 +184,7 @@ export default function RouteOptimization() {
       toast({ title: "Pick a truck", description: "Select a truck with a known position to start." });
       return;
     }
-    if (stops.length < 1) {
+    if (stops.length < 1 && !endStop.trim()) {
       toast({ title: "Add at least one stop" });
       return;
     }
@@ -160,15 +203,75 @@ export default function RouteOptimization() {
         }
         resolved.push({ ...pt, label: s.label, stopKey: s.key });
       }
+
+      let endResolved: (RoutePoint & { stopKey: string }) | null = null;
+      if (endStop.trim()) {
+        const pt = await geocode(endStop.trim());
+        if (!pt) {
+          toast({
+            title: "Couldn't locate end stop",
+            description: `Try a more specific name for "${endStop}".`,
+          });
+          setOptimizing(false);
+          return;
+        }
+        endResolved = { ...pt, label: endStop.trim(), stopKey: "end" };
+      }
+
       const start: LatLng = { lat: truckPoint.lat, lng: truckPoint.lng };
-      const baselineKm = pathDistanceKm(start, resolved);
+      const baselineSeq = endResolved ? [...resolved, endResolved] : resolved;
+      const baselineKm = pathDistanceKm(start, baselineSeq);
       const nn = nearestNeighbor(start, resolved);
+      const finalOrdered = endResolved ? [...nn.ordered, endResolved] : nn.ordered;
+
+      // Fetch real road route from OSRM public server
+      let roadPath: [number, number][] = [
+        [start.lat, start.lng],
+        ...finalOrdered.map((p) => [p.lat, p.lng] as [number, number]),
+      ];
+      // Compute legs incl. final leg to end (haversine fallback)
+      const lastPt: LatLng = nn.ordered.length ? nn.ordered[nn.ordered.length - 1] : start;
+      const fallbackLegs = [...nn.legsKm];
+      if (endResolved) {
+        
+        fallbackLegs.push(haversineKm(lastPt, endResolved));
+      }
+      let roadTotalKm = fallbackLegs.reduce((a, b) => a + b, 0);
+      let roadLegsKm = fallbackLegs;
+      try {
+        const coords = [start, ...finalOrdered]
+          .map((p) => `${p.lng},${p.lat}`)
+          .join(";");
+        const res = await fetch(
+          `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false&annotations=false`,
+        );
+        if (res.ok) {
+          const json = await res.json();
+          const route = json.routes?.[0];
+          if (route?.geometry?.coordinates) {
+            roadPath = route.geometry.coordinates.map(
+              ([lng, lat]: [number, number]) => [lat, lng] as [number, number],
+            );
+            roadTotalKm = route.distance / 1000;
+            if (route.legs) {
+              roadLegsKm = route.legs.map((l: { distance: number }) => l.distance / 1000);
+            }
+          }
+        }
+      } catch {
+        toast({
+          title: "Using straight-line estimate",
+          description: "Road routing service unreachable.",
+        });
+      }
+
       setResult({
-        ordered: nn.ordered as (RoutePoint & { stopKey: string })[],
-        legsKm: nn.legsKm,
-        totalKm: nn.totalKm,
+        ordered: finalOrdered as (RoutePoint & { stopKey: string })[],
+        legsKm: roadLegsKm,
+        totalKm: roadTotalKm,
         baselineKm,
         truckPos: start,
+        roadPath,
       });
     } finally {
       setOptimizing(false);
@@ -185,13 +288,10 @@ export default function RouteOptimization() {
     }));
   }, [result]);
 
-  const routePath: [number, number][] | undefined = useMemo(() => {
-    if (!result) return undefined;
-    return [
-      [result.truckPos.lat, result.truckPos.lng],
-      ...result.ordered.map((p) => [p.lat, p.lng] as [number, number]),
-    ];
-  }, [result]);
+  const routePath: [number, number][] | undefined = useMemo(
+    () => result?.roadPath,
+    [result],
+  );
 
   const fuelEff = Number(selectedTruck?.fuel_efficiency ?? 35); // L/100km default
   const estHours = result ? result.totalKm / AVG_SPEED_KMH : 0;
@@ -210,7 +310,7 @@ export default function RouteOptimization() {
         </div>
         <button
           onClick={optimize}
-          disabled={optimizing || !truckPoint || stops.length === 0}
+          disabled={optimizing || !truckPoint || (stops.length === 0 && !endStop.trim())}
           className="btn-action h-11 px-5 rounded-md text-sm font-semibold flex items-center gap-2 disabled:opacity-50"
         >
           {optimizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Activity className="h-4 w-4" />}
@@ -249,7 +349,7 @@ export default function RouteOptimization() {
                           {v.location ?? "—"} · {v.status}
                         </div>
                       </div>
-                      {v.lat == null && (
+                      {!hasGps(v) && (
                         <span className="text-[10px] text-destructive">no GPS</span>
                       )}
                     </button>
@@ -337,6 +437,30 @@ export default function RouteOptimization() {
               )}
             </ul>
           </section>
+
+          <section className="surface-2 rounded-xl p-5 ghost-shadow space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="label-eyebrow">3 · END STOP (FIXED)</div>
+              {endStop && (
+                <button
+                  onClick={() => { setEndStop(""); setResult(null); }}
+                  className="h-6 w-6 grid place-items-center rounded hover:bg-destructive/20"
+                  aria-label="Clear end stop"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Locked as the final destination. Order of other stops will be optimized between truck and this end point.
+            </p>
+            <input
+              value={endStop}
+              onChange={(e) => { setEndStop(e.target.value); setResult(null); }}
+              placeholder="City, State (e.g. Sydney, NSW)"
+              className="surface-3 h-9 px-3 rounded-md text-sm w-full outline-none"
+            />
+          </section>
         </div>
 
         {/* RIGHT — Map + Result */}
@@ -373,17 +497,23 @@ export default function RouteOptimization() {
                     {selectedTruck?.location ?? "Current position"}
                   </span>
                 </li>
-                {result.ordered.map((p, i) => (
-                  <li key={p.stopKey} className="flex items-center gap-3 text-sm">
-                    <span className="h-6 w-6 rounded-full grid place-items-center text-xs font-semibold bg-action text-action-foreground">
-                      {i + 1}
-                    </span>
-                    <span className="flex-1 truncate">{p.label}</span>
-                    <span className="font-mono-data text-xs text-muted-foreground">
-                      {result.legsKm[i].toFixed(0)} km
-                    </span>
-                  </li>
-                ))}
+                {result.ordered.map((p, i) => {
+                  const isEnd = p.stopKey === "end";
+                  return (
+                    <li key={p.stopKey} className="flex items-center gap-3 text-sm">
+                      <span className={`h-6 w-6 rounded-full grid place-items-center text-xs font-semibold ${isEnd ? "bg-primary text-primary-foreground" : "bg-action text-action-foreground"}`}>
+                        {isEnd ? "■" : i + 1}
+                      </span>
+                      <span className="flex-1 truncate">
+                        {p.label}
+                        {isEnd && <span className="ml-2 text-[10px] uppercase tracking-wider text-primary">End</span>}
+                      </span>
+                      <span className="font-mono-data text-xs text-muted-foreground">
+                        {result.legsKm[i]?.toFixed(0)} km
+                      </span>
+                    </li>
+                  );
+                })}
               </ol>
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
