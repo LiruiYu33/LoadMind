@@ -64,6 +64,18 @@ export async function assignLoad(loadId: string, payload: AssignLoadInput): Prom
   });
 }
 
+export async function cancelLoadListing(loadId: string): Promise<OpenLoad> {
+  return apiRequest<OpenLoad>(`/api/v1/loads/${loadId}/cancel`, {
+    method: "POST",
+  });
+}
+
+export async function restoreLoadListing(loadId: string): Promise<OpenLoad> {
+  return apiRequest<OpenLoad>(`/api/v1/loads/${loadId}/restore`, {
+    method: "POST",
+  });
+}
+
 export async function confirmLoadPickup(loadId: string): Promise<OpenLoad> {
   return apiRequest<OpenLoad>(`/api/v1/loads/${loadId}/confirm-pickup`, {
     method: "POST",
