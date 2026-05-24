@@ -1,9 +1,19 @@
+import { useRef } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { NavLink } from "@/components/NavLink";
 import {
-  Truck, Brain, Wrench, BarChart3, Send, History, LogOut, ChevronRight, Route, CreditCard,
+  Truck, Brain, Wrench, BarChart3, Send, History, LogOut, ChevronRight, Route, CreditCard, ChevronDown,
 } from "lucide-react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function PortalShell({
   variant,
@@ -15,6 +25,7 @@ export function PortalShell({
   const { user, roles, switchRole, signOut } = useAuth();
   const nav = useNavigate();
   const location = useLocation();
+  const accountMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const carrierNav = [
     { to: "/carrier",          label: "AI Load Matcher", icon: Brain, end: true },
@@ -89,14 +100,7 @@ export function PortalShell({
           </div>
         </nav>
 
-        <div className="shrink-0 border-t border-border/60 p-3 space-y-2">
-          <button
-            onClick={handleSignOut}
-            className="btn-action w-full h-[55px] rounded-md text-[15px] font-semibold flex items-center justify-center gap-3.5"
-          >
-            <LogOut className="h-5 w-5" /> Sign out
-          </button>
-        </div>
+        <div className="shrink-0 border-t border-border/60 p-3" />
       </aside>
 
       {/* Main */}
@@ -147,9 +151,48 @@ export function PortalShell({
                 })}
               </div>
             )}
-            <div className="h-9 w-9 rounded-full grid place-items-center text-xs font-semibold text-primary-foreground" style={{ background: "var(--gradient-primary)" }}>
-              {(user?.email ?? "U").slice(0, 2).toUpperCase()}
-            </div>
+            <DropdownMenu
+              onOpenChange={(open) => {
+                if (!open) {
+                  window.requestAnimationFrame(() => accountMenuTriggerRef.current?.blur());
+                }
+              }}
+            >
+              <DropdownMenuTrigger asChild>
+                <button
+                  ref={accountMenuTriggerRef}
+                  type="button"
+                  className="flex h-10 items-center gap-2 rounded-full pl-1 pr-2 transition-colors hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  aria-label="Open account menu"
+                >
+                  <Avatar className="h-9 w-9">
+                    <AvatarFallback
+                      className="text-xs font-semibold text-primary-foreground"
+                      style={{ background: "var(--gradient-primary)" }}
+                    >
+                      {(user?.email ?? "U").slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel>
+                  <div className="font-display text-sm font-semibold">Account</div>
+                  <div className="mt-1 truncate text-xs font-normal text-muted-foreground">
+                    {user?.email ?? "Signed in user"}
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={handleSignOut}
+                  className="cursor-pointer text-destructive focus:text-destructive"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
