@@ -1,14 +1,11 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
+import { LoadMindLoader } from "@/components/LoadMindLoader";
 
 export default function Index() {
   const { user, role, loading } = useAuth();
   if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-surface">
-        <div className="font-display text-sm text-muted-foreground animate-pulse-soft">Loading LoadMind…</div>
-      </div>
-    );
+    return <LoadMindLoader />;
   }
   if (!user) return <Navigate to="/auth" replace />;
   if (!role) return <Navigate to="/auth" replace />;

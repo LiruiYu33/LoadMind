@@ -27,7 +27,11 @@ def main() -> None:
         help="XGBoost model artifact path, relative to Backend unless absolute.",
     )
     parser.add_argument("--exchange-rate", type=float, default=1.52, help="USD to AUD exchange rate used for reporting.")
-    parser.add_argument("--show-rows", action="store_true", help="Print per-scenario prediction details.")
+    parser.add_argument(
+        "--hide-rows",
+        action="store_true",
+        help="Hide per-scenario prediction details.",
+    )
     args = parser.parse_args()
 
     backend_dir = Path(__file__).resolve().parents[1]
@@ -46,6 +50,12 @@ def main() -> None:
     print(f"Reference type: {rows[0]['reference_type'] if rows else 'n/a'}")
     print(f"USD to AUD exchange rate: {args.exchange_rate:.2f}")
     print()
+    print("Baseline formula:")
+    print()
+    print("```text")
+    print("baseline_aud = 250 + distance_miles * 2.0 + weight_lbs * 0.006 + actual_duration_hours * 15")
+    print("```")
+    print()
     print("| Model | MAE (AUD) | RMSE (AUD) | R2 |")
     print("| --- | ---: | ---: | ---: |")
     for name, predictions in [
@@ -55,7 +65,7 @@ def main() -> None:
         scores = score_predictions(references, predictions)
         print(f"| {name} | {scores['mae']:.2f} | {scores['rmse']:.2f} | {scores['r2']:.3f} |")
 
-    if args.show_rows:
+    if not args.hide_rows:
         print()
         print("| Scenario | Reference AUD | Baseline AUD | XGBoost AUD |")
         print("| --- | ---: | ---: | ---: |")
@@ -64,6 +74,17 @@ def main() -> None:
 
     print()
     print("Note: this benchmark is synthetic demo support, not production-grade freight pricing validation.")
+    print()
+    print("Demo reminder:")
+    print(
+        "- Reference AUD values are synthetic benchmark targets, not real market prices. "
+        "Use these results to explain the validation method, sanity-check pricing behaviour, "
+        "and compare XGBoost against a simple baseline."
+    )
+    print(
+        "- Do not present the MAE/RMSE/R2 numbers as proof of real-world pricing accuracy. "
+        "Production validation would require real or anonymised historical freight pricing data."
+    )
 
 
 def read_rows(path: Path) -> list[dict[str, float | str]]:

@@ -4,6 +4,7 @@ import { assignLoad, listOpenLoads } from "@/lib/loads-api";
 import { CheckCircle2, ArrowRight, Filter, Search, MapPin, Gauge, Truck, ChevronDown, type LucideIcon } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { LoadRouteMap } from "@/components/LoadRouteMap";
+import { LoadMindLoader } from "@/components/LoadMindLoader";
 import { normalizeDryGoodsCategory } from "@/lib/dry-goods";
 import {
   DropdownMenu,
@@ -46,19 +47,40 @@ type Vehicle = {
 export default function AIMatcher() {
   const [loads, setLoads] = useState<Load[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [loadsLoading, setLoadsLoading] = useState(true);
 
   useEffect(() => {
+    let cancelled = false;
+    let completionTimer: number | undefined;
+
+    setLoadsLoading(true);
+
     listOpenLoads()
-      .then((data) => setLoads(data ?? []))
+      .then((data) => {
+        if (cancelled) return;
+        setLoads(data ?? []);
+      })
       .catch((err: unknown) => {
+        if (cancelled) return;
         toast({
           title: "Could not load marketplace loads",
           description: err instanceof Error ? err.message : "Please try again.",
           variant: "destructive",
         });
+      })
+      .finally(() => {
+        if (cancelled) return;
+        completionTimer = window.setTimeout(() => {
+          if (!cancelled) setLoadsLoading(false);
+        }, 360);
       });
     supabase.from("vehicles").select("id, unit_id, model, status, location").order("unit_id")
       .then(({ data }) => setVehicles((data ?? []) as Vehicle[]));
+
+    return () => {
+      cancelled = true;
+      if (completionTimer) window.clearTimeout(completionTimer);
+    };
   }, []);
 
   const filtered = loads;
@@ -98,9 +120,19 @@ export default function AIMatcher() {
           <button className="h-9 px-3 rounded-md surface-2 text-sm flex items-center gap-2 hover:surface-3"><Filter className="h-3.5 w-3.5" /> Filters</button>
         </div>
 
+        {loadsLoading && (
+          <div className="surface-2 rounded-xl p-4 ghost-shadow">
+            <LoadMindLoader
+              compact
+              label="Scanning marketplace"
+              detail="Loading AI-matched loads"
+            />
+          </div>
+        )}
+
         {/* Match cards */}
         <div className="space-y-3">
-          {filtered.length === 0 && (
+          {!loadsLoading && filtered.length === 0 && (
             <div className="surface-2 rounded-xl p-10 text-center text-sm text-muted-foreground">
               No matches yet — AI Engine is rescanning the marketplace.
             </div>

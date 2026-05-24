@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { confirmLoadDelivery, confirmLoadPickup } from "@/lib/loads-api";
 import { toast } from "@/hooks/use-toast";
 import { normalizeDryGoodsCargo, normalizeDryGoodsCategory } from "@/lib/dry-goods";
+import { LoadMindLoader } from "@/components/LoadMindLoader";
 
 type Shipment = {
   id: string;
@@ -54,12 +55,19 @@ export default function ShipperDashboard() {
   const [shipments, setShipments] = useState<Shipment[]>([]);
   const [postedLoads, setPostedLoads] = useState<MarketplaceLoad[]>([]);
   const [actingId, setActingId] = useState<string | null>(null);
+  const [activeLoading, setActiveLoading] = useState(true);
+  const [postedLoading, setPostedLoading] = useState(true);
 
   const refreshActive = useCallback(() => {
     if (!user) {
       setShipments([]);
+      setActiveLoading(false);
       return;
     }
+
+    let cancelled = false;
+    let completionTimer: number | undefined;
+    setActiveLoading(true);
 
     supabase
       .from("loads")
@@ -67,18 +75,37 @@ export default function ShipperDashboard() {
       .eq("shipper_id", user.id)
       .in("status", ["scheduled", "in_transit"])
       .order("pickup_time", { ascending: true })
-      .then(({ data }) => setShipments((data ?? []) as Shipment[]));
+      .then(({ data }) => {
+        if (cancelled) return;
+        setShipments((data ?? []) as Shipment[]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        completionTimer = window.setTimeout(() => {
+          if (!cancelled) setActiveLoading(false);
+        }, 360);
+      });
+
+    return () => {
+      cancelled = true;
+      if (completionTimer) window.clearTimeout(completionTimer);
+    };
   }, [user]);
 
   useEffect(() => {
-    refreshActive();
+    return refreshActive();
   }, [refreshActive]);
 
   useEffect(() => {
     if (!user) {
       setPostedLoads([]);
+      setPostedLoading(false);
       return;
     }
+
+    let cancelled = false;
+    let completionTimer: number | undefined;
+    setPostedLoading(true);
 
     supabase
       .from("loads")
@@ -86,7 +113,21 @@ export default function ShipperDashboard() {
       .eq("shipper_id", user.id)
       .eq("status", "open")
       .order("created_at", { ascending: false })
-      .then(({ data }) => setPostedLoads((data ?? []) as MarketplaceLoad[]));
+      .then(({ data }) => {
+        if (cancelled) return;
+        setPostedLoads((data ?? []) as MarketplaceLoad[]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        completionTimer = window.setTimeout(() => {
+          if (!cancelled) setPostedLoading(false);
+        }, 360);
+      });
+
+    return () => {
+      cancelled = true;
+      if (completionTimer) window.clearTimeout(completionTimer);
+    };
   }, [user]);
 
   const active = useMemo<ActiveRow[]>(() => {
@@ -151,6 +192,8 @@ export default function ShipperDashboard() {
           </div>
         </div>
 
+        {activeLoading && <LoadingProgress label="Loading active shipments" />}
+
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="surface-3">
@@ -194,7 +237,7 @@ export default function ShipperDashboard() {
                   </td>
                 </tr>
               ))}
-              {active.length === 0 && (
+              {!activeLoading && active.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-sm text-muted-foreground">
                     No active shipments yet.
@@ -214,6 +257,8 @@ export default function ShipperDashboard() {
             <h2 className="font-display text-xl font-bold mt-0.5">Waiting for Carrier</h2>
           </div>
         </div>
+
+        {postedLoading && <LoadingProgress label="Loading posted loads" />}
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -259,7 +304,7 @@ export default function ShipperDashboard() {
                   </td>
                 </tr>
               ))}
-              {postedLoads.length === 0 && (
+              {!postedLoading && postedLoads.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-sm text-muted-foreground">
                     No posted marketplace loads yet.
@@ -271,6 +316,16 @@ export default function ShipperDashboard() {
         </div>
       </section>
 
+    </div>
+  );
+}
+
+function LoadingProgress({ label }: { label: string }) {
+  return (
+    <div className="px-6 pb-5">
+      <div className="rounded-md surface-3">
+        <LoadMindLoader compact label={label} />
+      </div>
     </div>
   );
 }
