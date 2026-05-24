@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEventHandler } from "react";
 import { MapPin } from "lucide-react";
 import { AddressSuggestion, searchAddressSuggestions } from "@/lib/geo";
 
@@ -9,6 +9,8 @@ export function AddressAutocompleteInput({
   required,
   maxLength = 240,
   className = "",
+  showSuggestionIcon = true,
+  onKeyDown,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -16,6 +18,8 @@ export function AddressAutocompleteInput({
   required?: boolean;
   maxLength?: number;
   className?: string;
+  showSuggestionIcon?: boolean;
+  onKeyDown?: KeyboardEventHandler<HTMLInputElement>;
 }) {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [open, setOpen] = useState(false);
@@ -75,6 +79,7 @@ export function AddressAutocompleteInput({
         onChange={(event) => onChange(event.target.value)}
         onFocus={handleFocus}
         onBlur={handleBlur}
+        onKeyDown={onKeyDown}
         className={className}
       />
 
@@ -98,7 +103,7 @@ export function AddressAutocompleteInput({
               onClick={() => handleSelect(suggestion)}
               className="flex w-full items-start gap-2 px-3 py-2 text-left text-sm hover:bg-accent focus:bg-accent"
             >
-              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+              {showSuggestionIcon && <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />}
               <span className="min-w-0 leading-snug">{suggestion.label}</span>
             </button>
           ))}

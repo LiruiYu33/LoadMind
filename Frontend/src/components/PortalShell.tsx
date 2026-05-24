@@ -2,7 +2,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { NavLink } from "@/components/NavLink";
 import {
-  Truck, Brain, Wrench, BarChart3, Send, History, LogOut, ChevronRight, Activity, Route,
+  Truck, Brain, Wrench, BarChart3, Send, History, LogOut, ChevronRight, Route,
 } from "lucide-react";
 
 export function PortalShell({
@@ -88,17 +88,9 @@ export function PortalShell({
         </nav>
 
         <div className="shrink-0 border-t border-border/60 p-3 space-y-2">
-          {variant === "carrier" && (
-            <button
-              onClick={() => nav("/carrier/route")}
-              className="btn-action w-full h-10 rounded-md text-sm font-semibold flex items-center justify-center gap-2"
-            >
-              <Activity className="h-4 w-4" /> Optimize Route
-            </button>
-          )}
           <button
             onClick={handleSignOut}
-            className="w-full h-10 rounded-md text-sm font-medium text-muted-foreground hover:surface-2 hover:text-foreground flex items-center justify-center gap-2 transition"
+            className="btn-action w-full h-10 rounded-md text-sm font-semibold flex items-center justify-center gap-2"
           >
             <LogOut className="h-4 w-4" /> Sign out
           </button>
