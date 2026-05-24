@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { FleetMap, type RouteStopPoint, type TruckPoint } from "@/components/FleetMap";
+import { AddressAutocompleteInput } from "@/components/AddressAutocompleteInput";
 import { geocode, type LatLng } from "@/lib/geocode";
 import { geocodeLocation } from "@/lib/geo";
 import {
@@ -398,11 +399,12 @@ export default function RouteOptimization() {
             <div className="space-y-2">
               <div className="text-xs text-muted-foreground">Custom stop</div>
               <div className="flex gap-2">
-                <input
+                <AddressAutocompleteInput
                   value={customInput}
-                  onChange={(e) => setCustomInput(e.target.value)}
+                  onChange={setCustomInput}
                   onKeyDown={(e) => e.key === "Enter" && addCustomStop()}
                   placeholder="City, State"
+                  showSuggestionIcon={false}
                   className="surface-3 h-9 px-3 rounded-md text-sm flex-1 min-w-0 outline-none"
                 />
                 <button
@@ -454,10 +456,11 @@ export default function RouteOptimization() {
             <p className="text-xs text-muted-foreground">
               Locked as the final destination. Order of other stops will be optimized between truck and this end point.
             </p>
-            <input
+            <AddressAutocompleteInput
               value={endStop}
-              onChange={(e) => { setEndStop(e.target.value); setResult(null); }}
+              onChange={(value) => { setEndStop(value); setResult(null); }}
               placeholder="City, State (e.g. Sydney, NSW)"
+              showSuggestionIcon={false}
               className="surface-3 h-9 px-3 rounded-md text-sm w-full outline-none"
             />
           </section>
