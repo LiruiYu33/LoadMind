@@ -194,46 +194,46 @@ export default function PostShipment() {
             <Field
               label="Pickup Location"
               required
-              action={
+            >
+              <div className="relative">
+                <AddressAutocompleteInput
+                  required
+                  value={form.origin}
+                  onChange={(value) => setValue("origin", value)}
+                  placeholder="Melbourne, VIC"
+                  maxLength={240}
+                  className="loadmind-input pr-[5.25rem]"
+                />
                 <button
                   type="button"
                   onClick={() => setLocationPicker("origin")}
-                  className="h-7 px-2.5 rounded-md surface-3 text-xs font-semibold flex items-center gap-1.5 hover:lift-shadow"
+                  className="absolute right-1 top-1 h-[34px] rounded-[4px] px-2.5 text-xs font-semibold flex items-center gap-1.5 transition hover:bg-primary/10 hover:text-primary"
                 >
                   <MapPin className="h-3.5 w-3.5" /> Map
                 </button>
-              }
-            >
-              <AddressAutocompleteInput
-                required
-                value={form.origin}
-                onChange={(value) => setValue("origin", value)}
-                placeholder="Melbourne, VIC"
-                maxLength={240}
-                className="loadmind-input"
-              />
+              </div>
             </Field>
             <Field
               label="Delivery Location"
               required
-              action={
+            >
+              <div className="relative">
+                <AddressAutocompleteInput
+                  required
+                  value={form.destination}
+                  onChange={(value) => setValue("destination", value)}
+                  placeholder="Sydney, NSW"
+                  maxLength={240}
+                  className="loadmind-input pr-[5.25rem]"
+                />
                 <button
                   type="button"
                   onClick={() => setLocationPicker("destination")}
-                  className="h-7 px-2.5 rounded-md surface-3 text-xs font-semibold flex items-center gap-1.5 hover:lift-shadow"
+                  className="absolute right-1 top-1 h-[34px] rounded-[4px] px-2.5 text-xs font-semibold flex items-center gap-1.5 transition hover:bg-primary/10 hover:text-primary"
                 >
                   <MapPin className="h-3.5 w-3.5" /> Map
                 </button>
-              }
-            >
-              <AddressAutocompleteInput
-                required
-                value={form.destination}
-                onChange={(value) => setValue("destination", value)}
-                placeholder="Sydney, NSW"
-                maxLength={240}
-                className="loadmind-input"
-              />
+              </div>
             </Field>
             <Field label="Pickup Time" required>
               <input required type="datetime-local" value={form.pickupTime} onChange={set("pickupTime")} className="loadmind-input" />
