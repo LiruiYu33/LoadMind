@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { confirmLoadDelivery, confirmLoadPickup } from "@/lib/loads-api";
 import { LocationPickerDialog } from "@/components/LocationPickerDialog";
 import { AddressAutocompleteInput } from "@/components/AddressAutocompleteInput";
+import { geocodeLocation } from "@/lib/geo";
 import { normalizeDryGoodsCategory } from "@/lib/dry-goods";
 import { z } from "zod";
 import {
@@ -33,6 +34,8 @@ type Vehicle = {
   fuel_efficiency: number;
   status: string;
   location: string | null;
+  lat: number | null;
+  lng: number | null;
   preferred_routes: string[] | null;
   trailers?: Trailer[] | null;
 };
@@ -421,6 +424,16 @@ function RegisterVehicleDialog({
     const routes = parsed.data.preferred_routes
       ? parsed.data.preferred_routes.split(",").map((r) => r.trim()).filter(Boolean)
       : [];
+    const locationText = parsed.data.location?.trim() || "";
+    const geocodedLocation = locationText ? await geocodeLocation(locationText) : null;
+
+    if (locationText && !geocodedLocation) {
+      toast({
+        title: "Could not resolve GPS from location",
+        description: "Address saved, but lat/lng could not be derived for this vehicle.",
+      });
+    }
+
     const totalCapacity = parsed.data.trailers.reduce((sum, t) => sum + t.capacity_t, 0);
 
     const payload = {
@@ -429,7 +442,9 @@ function RegisterVehicleDialog({
       model: parsed.data.model,
       capacity_t: totalCapacity,
       fuel_efficiency: parsed.data.fuel_efficiency,
-      location: parsed.data.location || null,
+      location: locationText || null,
+      lat: geocodedLocation?.lat ?? null,
+      lng: geocodedLocation?.lng ?? null,
       preferred_routes: routes,
       trailers: parsed.data.trailers,
     };
