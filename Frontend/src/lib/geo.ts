@@ -105,7 +105,7 @@ export async function geocodeLocation(value: string): Promise<Coordinates | null
   const key = normalizeLocation(raw);
   if (geocodeCache.has(key)) return geocodeCache.get(key)!;
 
-  const promise = geocodeLocationRemote(raw);
+  const promise = geocodeLocationRemote(raw, true).then((result) => result ?? geocodeLocationRemote(raw, false));
   geocodeCache.set(key, promise);
   return promise;
 }
@@ -138,7 +138,17 @@ export async function searchAddressSuggestions(value: string): Promise<AddressSu
   const key = normalizeLocation(raw);
   if (suggestionCache.has(key)) return suggestionCache.get(key)!;
 
-  const promise = searchAddressSuggestionsRemote(raw);
+  const promise = searchAddressSuggestionsRemote(raw, true).then(async (items) => {
+    if (items.length > 0) return items;
+
+    const fallback = await searchAddressSuggestionsRemote(raw, false);
+    if (fallback.length > 0) return fallback;
+
+    const coords = await geocodeLocation(raw);
+    return coords
+      ? [{ id: `local-${normalizeLocation(raw)}`, label: raw, coords }]
+      : [];
+  });
   suggestionCache.set(key, promise);
   return promise;
 }
@@ -195,15 +205,15 @@ function normalizeLocation(value: string) {
     .replace(/\s+/g, " ");
 }
 
-async function geocodeLocationRemote(value: string): Promise<Coordinates | null> {
+async function geocodeLocationRemote(value: string, preferAustralia: boolean): Promise<Coordinates | null> {
   try {
     const url = new URL("https://nominatim.openstreetmap.org/search");
     url.searchParams.set("format", "jsonv2");
     url.searchParams.set("addressdetails", "1");
     url.searchParams.set("limit", "8");
-    url.searchParams.set("countrycodes", "au");
     url.searchParams.set("dedupe", "1");
-    url.searchParams.set("q", buildAustralianQuery(value));
+    if (preferAustralia) url.searchParams.set("countrycodes", "au");
+    url.searchParams.set("q", buildSearchQuery(value, preferAustralia));
 
     const response = await fetch(url.toString(), {
       headers: { Accept: "application/json", "Accept-Language": "en-AU,en;q=0.9" },
@@ -224,8 +234,9 @@ async function geocodeLocationRemote(value: string): Promise<Coordinates | null>
   }
 }
 
-function buildAustralianQuery(value: string) {
+function buildSearchQuery(value: string, preferAustralia: boolean) {
   const expanded = expandLocationQuery(value);
+  if (!preferAustralia) return expanded;
   return /\baustralia\b/i.test(expanded) ? expanded : `${expanded}, Australia`;
 }
 
@@ -310,14 +321,14 @@ function hasLocationToken(normalizedInput: string, token: string) {
   return normalizedInput.split(" ").includes(token);
 }
 
-async function searchAddressSuggestionsRemote(value: string): Promise<AddressSuggestion[]> {
+async function searchAddressSuggestionsRemote(value: string, preferAustralia: boolean): Promise<AddressSuggestion[]> {
   try {
     const url = new URL("https://nominatim.openstreetmap.org/search");
     url.searchParams.set("format", "jsonv2");
     url.searchParams.set("addressdetails", "1");
     url.searchParams.set("limit", "5");
-    url.searchParams.set("countrycodes", "au");
-    url.searchParams.set("q", buildAustralianQuery(value));
+    if (preferAustralia) url.searchParams.set("countrycodes", "au");
+    url.searchParams.set("q", buildSearchQuery(value, preferAustralia));
 
     const response = await fetch(url.toString(), {
       headers: { Accept: "application/json", "Accept-Language": "en-AU,en;q=0.9" },
