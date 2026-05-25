@@ -5,7 +5,7 @@ import logging
 import httpx
 from fastapi import APIRouter, HTTPException, status
 
-from app.ai.pricing import calculate_price
+from app.ai.pricing import calculate_price, estimate_fallback_price_aud
 from app.api.schemas.price_insights import (
     PriceSuggestionRequest,
     PriceSuggestionResponse,
@@ -64,6 +64,7 @@ async def suggest_price(payload: PriceSuggestionRequest) -> PriceSuggestionRespo
     Takes location names and converts them to coordinates, then uses the XGBoost model
     to predict pricing. Includes HOS (Hours of Service) logic.
     """
+    cargo_label = payload.cargo.strip() or "General freight"
     try:
         # 1. Geocode locations
         origin_coords = await geocode_location(payload.origin)
@@ -95,16 +96,20 @@ async def suggest_price(payload: PriceSuggestionRequest) -> PriceSuggestionRespo
             actual_duration_hours=pricing_result["actual_duration_hours"],
             distance_miles=pricing_result["distance_miles"],
         )
-
-    except ValueError as e:
-        logger.error(f"Validation error in price suggestion: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        ) from e
     except Exception as e:
-        logger.error(f"Error suggesting price: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Failed to calculate price: {str(e)}",
-        ) from e
+        logger.error(f"Error suggesting price, returning fallback estimate: {e}")
+        fallback_price = estimate_fallback_price_aud(
+            weight_kg=payload.weight_kg,
+            cargo=payload.cargo,
+            load_type=payload.load_type,
+        )
+        return PriceSuggestionResponse(
+            suggested_price=fallback_price,
+            reasoning=(
+                f"Live AI pricing is unavailable for {cargo_label}. "
+                f"A conservative fallback price was applied for this shipment."
+            ),
+            pure_driving_hours=None,
+            actual_duration_hours=None,
+            distance_miles=None,
+        )

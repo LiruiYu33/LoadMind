@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class PriceSuggestionRequest(BaseModel):
-    cargo: str = Field(min_length=1, max_length=120)
+    cargo: str = Field(default="", max_length=120)
     origin: str = Field(min_length=1, max_length=240)
     destination: str = Field(min_length=1, max_length=240)
     weight_kg: float = Field(gt=0, le=100000)
@@ -16,6 +16,15 @@ class PriceSuggestionRequest(BaseModel):
     height_cm: int | None = Field(default=None, ge=1, le=100000)
     pickup_time: datetime
     dropoff_time: datetime
+
+    @field_validator("cargo", mode="before")
+    @classmethod
+    def normalize_cargo(cls, value: object) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value.strip()
+        return str(value).strip()
 
 
 class PriceSuggestionResponse(BaseModel):
