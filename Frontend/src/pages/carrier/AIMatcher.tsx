@@ -35,6 +35,7 @@ type Load = {
   length_cm?: number | null;
   width_cm?: number | null;
   height_cm?: number | null;
+  created_at?: string | null;
 };
 
 type Vehicle = {
@@ -63,6 +64,7 @@ type AssignedLoad = {
 };
 
 type WeightFilter = "all" | "under_5" | "5_to_15" | "15_plus";
+type SortMode = "score" | "value" | "empty_miles_saved";
 
 export default function AIMatcher() {
   const { user } = useAuth();
@@ -74,6 +76,7 @@ export default function AIMatcher() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [weightFilter, setWeightFilter] = useState<WeightFilter>("all");
   const [onlyAvailable, setOnlyAvailable] = useState(false);
+  const [sortMode, setSortMode] = useState<SortMode>("score");
 
   useEffect(() => {
     let cancelled = false;
@@ -173,8 +176,8 @@ export default function AIMatcher() {
       }
 
       return true;
-    });
-  }, [assignedLoadsByVehicle, categoryFilter, loads, onlyAvailable, searchTerm, vehicles, weightFilter]);
+    }).sort((a, b) => compareLoads(a, b, sortMode));
+  }, [assignedLoadsByVehicle, categoryFilter, loads, onlyAvailable, searchTerm, sortMode, vehicles, weightFilter]);
 
   const resetFilters = () => {
     setSearchTerm("");
@@ -220,8 +223,8 @@ export default function AIMatcher() {
 
       <div className="space-y-4">
         {/* Search */}
-        <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[minmax(180px,0.85fr)_190px_130px_150px_auto]">
-          <div className="flex h-9 min-w-0 items-center gap-2 rounded-md surface-2 px-3">
+        <div className="flex w-full flex-wrap items-center gap-2 lg:flex-nowrap">
+          <div className="flex h-9 min-w-[130px] flex-1 items-center gap-2 rounded-md surface-2 px-3 lg:max-w-[220px]">
             <Search className="h-3.5 w-3.5 text-muted-foreground" />
             <input
               value={searchTerm}
@@ -233,7 +236,7 @@ export default function AIMatcher() {
           <select
             value={categoryFilter}
             onChange={(event) => setCategoryFilter(event.target.value)}
-            className="h-9 w-full rounded-md surface-2 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+            className="h-9 w-[136px] shrink-0 rounded-md surface-2 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
             aria-label="Filter by category"
           >
             <option value="all">All dry goods</option>
@@ -246,7 +249,7 @@ export default function AIMatcher() {
           <select
             value={weightFilter}
             onChange={(event) => setWeightFilter(event.target.value as WeightFilter)}
-            className="h-9 w-full rounded-md surface-2 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+            className="h-9 w-[105px] shrink-0 rounded-md surface-2 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
             aria-label="Filter by weight"
           >
             <option value="all">All weights</option>
@@ -254,7 +257,7 @@ export default function AIMatcher() {
             <option value="5_to_15">5-15 t</option>
             <option value="15_plus">15 t+</option>
           </select>
-          <label className="flex h-9 items-center gap-2 rounded-md surface-2 px-3 text-sm font-semibold">
+          <label className="flex h-9 w-[152px] shrink-0 items-center gap-2 rounded-md surface-2 px-3 text-sm font-semibold whitespace-nowrap">
             <input
               type="checkbox"
               checked={onlyAvailable}
@@ -265,10 +268,20 @@ export default function AIMatcher() {
           <button
             type="button"
             onClick={resetFilters}
-            className="h-9 rounded-md px-3 text-sm font-semibold text-muted-foreground hover:bg-background/60 hover:text-foreground"
+            className="h-9 shrink-0 rounded-md px-3 text-sm font-semibold text-muted-foreground hover:bg-background/60 hover:text-foreground"
           >
             Reset{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
           </button>
+          <select
+            value={sortMode}
+            onChange={(event) => setSortMode(event.target.value as SortMode)}
+            className="ml-auto h-9 w-[160px] shrink-0 rounded-md surface-2 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+            aria-label="Sort loads"
+          >
+            <option value="score">Sort: Score</option>
+            <option value="value">Sort: Load Value</option>
+            <option value="empty_miles_saved">Sort: Empty Miles Saved</option>
+          </select>
         </div>
 
         {loadsLoading && (
@@ -401,6 +414,50 @@ export default function AIMatcher() {
       </div>
     </div>
   );
+}
+
+function compareLoads(a: Load, b: Load, sortMode: SortMode) {
+  if (sortMode === "value") {
+    return compareNumberDesc(a.value, b.value) ||
+      compareNumberDesc(a.match_score, b.match_score) ||
+      compareDateDesc(a.created_at, b.created_at);
+  }
+
+  if (sortMode === "empty_miles_saved") {
+    return compareNumberDesc(a.empty_miles_saved, b.empty_miles_saved) ||
+      compareNumberDesc(a.match_score, b.match_score) ||
+      compareDateDesc(a.created_at, b.created_at);
+  }
+
+  return compareNumberDesc(a.match_score, b.match_score) ||
+    compareDateDesc(a.created_at, b.created_at);
+}
+
+function compareNumberDesc(a: number | null | undefined, b: number | null | undefined) {
+  const left = numberForSort(a);
+  const right = numberForSort(b);
+
+  if (left == null && right == null) return 0;
+  if (left == null) return 1;
+  if (right == null) return -1;
+  return right - left;
+}
+
+function compareDateDesc(a: string | null | undefined, b: string | null | undefined) {
+  const left = Date.parse(a ?? "");
+  const right = Date.parse(b ?? "");
+  const leftValid = Number.isFinite(left);
+  const rightValid = Number.isFinite(right);
+
+  if (!leftValid && !rightValid) return 0;
+  if (!leftValid) return 1;
+  if (!rightValid) return -1;
+  return right - left;
+}
+
+function numberForSort(value: number | null | undefined) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 function formatDateTime(value: string) {
