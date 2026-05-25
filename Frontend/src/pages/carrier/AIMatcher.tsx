@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { assignLoad, listOpenLoads } from "@/lib/loads-api";
-import { CheckCircle2, ArrowRight, Search, MapPin, Gauge, Truck, ChevronDown, type LucideIcon } from "lucide-react";
+import { CheckCircle2, ArrowRight, Search, MapPin, Gauge, Truck, ChevronDown, Loader2, Navigation, type LucideIcon } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { LoadRouteMap } from "@/components/LoadRouteMap";
 import { LoadMindLoader } from "@/components/LoadMindLoader";
 import { DRY_GOODS_CATEGORIES, normalizeDryGoodsCategory } from "@/lib/dry-goods";
 import { useAuth } from "@/lib/auth";
+import { LocationPickerDialog } from "@/components/LocationPickerDialog";
+import { Coordinates, geocodeLocation, reverseGeocodeLocation } from "@/lib/geo";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +37,7 @@ type Load = {
   length_cm?: number | null;
   width_cm?: number | null;
   height_cm?: number | null;
+  created_at?: string | null;
 };
 
 type Vehicle = {
@@ -63,6 +66,11 @@ type AssignedLoad = {
 };
 
 type WeightFilter = "all" | "under_5" | "5_to_15" | "15_plus";
+type SortMode = "score" | "value" | "empty_miles_saved" | "nearest_pickup";
+type PickupSortLocation = {
+  address: string;
+  coords: Coordinates;
+};
 
 export default function AIMatcher() {
   const { user } = useAuth();
@@ -74,6 +82,11 @@ export default function AIMatcher() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [weightFilter, setWeightFilter] = useState<WeightFilter>("all");
   const [onlyAvailable, setOnlyAvailable] = useState(false);
+  const [sortMode, setSortMode] = useState<SortMode>("score");
+  const [pickupSortLocation, setPickupSortLocation] = useState<PickupSortLocation | null>(null);
+  const [pickupSortPickerOpen, setPickupSortPickerOpen] = useState(false);
+  const [browserLocationLoading, setBrowserLocationLoading] = useState(false);
+  const [pickupCoordsByLoad, setPickupCoordsByLoad] = useState<Record<string, Coordinates | null>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -135,6 +148,35 @@ export default function AIMatcher() {
     weightFilter !== "all",
     onlyAvailable,
   ].filter(Boolean).length;
+
+  useEffect(() => {
+    if (sortMode !== "nearest_pickup" || !pickupSortLocation) return;
+
+    const missingLoads = loads.filter((load) => pickupCoordsByLoad[load.id] === undefined);
+    if (missingLoads.length === 0) return;
+
+    let cancelled = false;
+
+    Promise.all(
+      missingLoads.map(async (load) => {
+        const pickup = formatLoadLocation(load.route_origin || load.origin);
+        const coords = await geocodeLocation(pickup);
+        return [load.id, coords] as const;
+      }),
+    ).then((entries) => {
+      if (cancelled) return;
+      setPickupCoordsByLoad((current) => {
+        const next = { ...current };
+        for (const [loadId, coords] of entries) next[loadId] = coords;
+        return next;
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loads, pickupCoordsByLoad, pickupSortLocation, sortMode]);
+
   const filtered = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
 
@@ -173,14 +215,69 @@ export default function AIMatcher() {
       }
 
       return true;
-    });
-  }, [assignedLoadsByVehicle, categoryFilter, loads, onlyAvailable, searchTerm, vehicles, weightFilter]);
+    }).sort((a, b) => compareLoads(a, b, sortMode, pickupSortLocation?.coords, pickupCoordsByLoad));
+  }, [assignedLoadsByVehicle, categoryFilter, loads, onlyAvailable, pickupCoordsByLoad, pickupSortLocation, searchTerm, sortMode, vehicles, weightFilter]);
+
+  const pickupDistanceLoading = sortMode === "nearest_pickup" &&
+    Boolean(pickupSortLocation) &&
+    filtered.some((load) => pickupCoordsByLoad[load.id] === undefined);
 
   const resetFilters = () => {
     setSearchTerm("");
     setCategoryFilter("all");
     setWeightFilter("all");
     setOnlyAvailable(false);
+  };
+
+  const handlePickupSortMapConfirm = async (address: string, coords?: Coordinates) => {
+    const resolvedCoords = coords ?? await geocodeLocation(address);
+    if (!resolvedCoords) {
+      toast({
+        title: "Could not use selected location",
+        description: "Please choose a more specific address or try browser location.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPickupSortLocation({ address, coords: resolvedCoords });
+  };
+
+  const handleUseBrowserLocation = () => {
+    if (!navigator.geolocation) {
+      toast({
+        title: "Browser location is unavailable",
+        description: "Use the map pin to choose your current position instead.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setBrowserLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const coords = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        const address = await reverseGeocodeLocation(coords);
+        setPickupSortLocation({ address, coords });
+        setBrowserLocationLoading(false);
+        toast({
+          title: "Current location captured",
+          description: "Nearest Pickup sorting now uses this browser location snapshot.",
+        });
+      },
+      () => {
+        setBrowserLocationLoading(false);
+        toast({
+          title: "Could not access browser location",
+          description: "Allow location access or use the map pin option.",
+          variant: "destructive",
+        });
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+    );
   };
 
   const handleAssign = async (load: Load, vehicle: Vehicle) => {
@@ -220,8 +317,8 @@ export default function AIMatcher() {
 
       <div className="space-y-4">
         {/* Search */}
-        <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[minmax(180px,0.85fr)_190px_130px_150px_auto]">
-          <div className="flex h-9 min-w-0 items-center gap-2 rounded-md surface-2 px-3">
+        <div className="flex w-full flex-wrap items-center gap-2 lg:flex-nowrap">
+          <div className="flex h-9 min-w-[130px] flex-1 items-center gap-2 rounded-md surface-2 px-3 lg:max-w-[220px]">
             <Search className="h-3.5 w-3.5 text-muted-foreground" />
             <input
               value={searchTerm}
@@ -233,7 +330,7 @@ export default function AIMatcher() {
           <select
             value={categoryFilter}
             onChange={(event) => setCategoryFilter(event.target.value)}
-            className="h-9 w-full rounded-md surface-2 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+            className="h-9 w-[136px] shrink-0 rounded-md surface-2 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
             aria-label="Filter by category"
           >
             <option value="all">All dry goods</option>
@@ -246,7 +343,7 @@ export default function AIMatcher() {
           <select
             value={weightFilter}
             onChange={(event) => setWeightFilter(event.target.value as WeightFilter)}
-            className="h-9 w-full rounded-md surface-2 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+            className="h-9 w-[105px] shrink-0 rounded-md surface-2 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
             aria-label="Filter by weight"
           >
             <option value="all">All weights</option>
@@ -254,7 +351,7 @@ export default function AIMatcher() {
             <option value="5_to_15">5-15 t</option>
             <option value="15_plus">15 t+</option>
           </select>
-          <label className="flex h-9 items-center gap-2 rounded-md surface-2 px-3 text-sm font-semibold">
+          <label className="flex h-9 w-[152px] shrink-0 items-center gap-2 rounded-md surface-2 px-3 text-sm font-semibold whitespace-nowrap">
             <input
               type="checkbox"
               checked={onlyAvailable}
@@ -265,11 +362,71 @@ export default function AIMatcher() {
           <button
             type="button"
             onClick={resetFilters}
-            className="h-9 rounded-md px-3 text-sm font-semibold text-muted-foreground hover:bg-background/60 hover:text-foreground"
+            className="h-9 shrink-0 rounded-md px-3 text-sm font-semibold text-muted-foreground hover:bg-background/60 hover:text-foreground"
           >
             Reset{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
           </button>
+          <select
+            value={sortMode}
+            onChange={(event) => setSortMode(event.target.value as SortMode)}
+            className="ml-auto h-9 w-[160px] shrink-0 rounded-md surface-2 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
+            aria-label="Sort loads"
+          >
+            <option value="score">Sort: Score</option>
+            <option value="value">Sort: Load Value</option>
+            <option value="empty_miles_saved">Sort: Empty Miles Saved</option>
+            <option value="nearest_pickup">Sort: Nearest Pickup</option>
+          </select>
         </div>
+
+        {sortMode === "nearest_pickup" && (
+          <div className="surface-2 rounded-md px-3 py-2.5">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="min-w-[180px] flex-1">
+                <div className="label-eyebrow">PICKUP DISTANCE ORIGIN</div>
+                <div className="mt-1 text-sm font-medium text-muted-foreground">
+                  {pickupSortLocation?.address ?? "Choose your current location to sort nearest pickup loads."}
+                </div>
+                {pickupDistanceLoading && (
+                  <div className="mt-1 flex items-center gap-1.5 text-xs font-semibold text-primary">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Resolving pickup distances...
+                  </div>
+                )}
+              </div>
+              <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPickupSortPickerOpen(true)}
+                  className="h-9 rounded-md surface-3 px-3 text-sm font-semibold text-foreground transition hover:bg-background/60 flex items-center gap-2"
+                >
+                  <MapPin className="h-3.5 w-3.5 text-primary" />
+                  Map pin
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUseBrowserLocation}
+                  disabled={browserLocationLoading}
+                  className="h-9 rounded-md surface-3 px-3 text-sm font-semibold text-foreground transition hover:bg-background/60 disabled:opacity-60 flex items-center gap-2"
+                >
+                  {browserLocationLoading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                  ) : (
+                    <Navigation className="h-3.5 w-3.5 text-primary" />
+                  )}
+                  Browser location
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <LocationPickerDialog
+          open={pickupSortPickerOpen}
+          onOpenChange={setPickupSortPickerOpen}
+          value={pickupSortLocation?.address ?? ""}
+          onConfirm={handlePickupSortMapConfirm}
+        />
 
         {loadsLoading && (
           <div className="surface-2 rounded-xl p-4 ghost-shadow">
@@ -401,6 +558,93 @@ export default function AIMatcher() {
       </div>
     </div>
   );
+}
+
+function compareLoads(
+  a: Load,
+  b: Load,
+  sortMode: SortMode,
+  pickupOrigin?: Coordinates,
+  pickupCoordsByLoad: Record<string, Coordinates | null> = {},
+) {
+  if (sortMode === "nearest_pickup" && pickupOrigin) {
+    return compareNumberAsc(
+      distanceKm(pickupOrigin, pickupCoordsByLoad[a.id]),
+      distanceKm(pickupOrigin, pickupCoordsByLoad[b.id]),
+    ) ||
+      compareNumberDesc(a.match_score, b.match_score) ||
+      compareDateDesc(a.created_at, b.created_at);
+  }
+
+  if (sortMode === "value") {
+    return compareNumberDesc(a.value, b.value) ||
+      compareNumberDesc(a.match_score, b.match_score) ||
+      compareDateDesc(a.created_at, b.created_at);
+  }
+
+  if (sortMode === "empty_miles_saved") {
+    return compareNumberDesc(a.empty_miles_saved, b.empty_miles_saved) ||
+      compareNumberDesc(a.match_score, b.match_score) ||
+      compareDateDesc(a.created_at, b.created_at);
+  }
+
+  return compareNumberDesc(a.match_score, b.match_score) ||
+    compareDateDesc(a.created_at, b.created_at);
+}
+
+function compareNumberAsc(a: number | null | undefined, b: number | null | undefined) {
+  const left = numberForSort(a);
+  const right = numberForSort(b);
+
+  if (left == null && right == null) return 0;
+  if (left == null) return 1;
+  if (right == null) return -1;
+  return left - right;
+}
+
+function compareNumberDesc(a: number | null | undefined, b: number | null | undefined) {
+  const left = numberForSort(a);
+  const right = numberForSort(b);
+
+  if (left == null && right == null) return 0;
+  if (left == null) return 1;
+  if (right == null) return -1;
+  return right - left;
+}
+
+function compareDateDesc(a: string | null | undefined, b: string | null | undefined) {
+  const left = Date.parse(a ?? "");
+  const right = Date.parse(b ?? "");
+  const leftValid = Number.isFinite(left);
+  const rightValid = Number.isFinite(right);
+
+  if (!leftValid && !rightValid) return 0;
+  if (!leftValid) return 1;
+  if (!rightValid) return -1;
+  return right - left;
+}
+
+function numberForSort(value: number | null | undefined) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function distanceKm(a: Coordinates, b: Coordinates | null | undefined) {
+  if (!b) return null;
+
+  const earthRadiusKm = 6371;
+  const lat1 = degreesToRadians(a.lat);
+  const lat2 = degreesToRadians(b.lat);
+  const deltaLat = degreesToRadians(b.lat - a.lat);
+  const deltaLng = degreesToRadians(b.lng - a.lng);
+  const haversine = Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLng / 2) ** 2;
+
+  return 2 * earthRadiusKm * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function degreesToRadians(value: number) {
+  return value * (Math.PI / 180);
 }
 
 function formatDateTime(value: string) {
