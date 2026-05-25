@@ -38,7 +38,7 @@ export function LocationPickerDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   value: string;
-  onConfirm: (value: string) => void;
+  onConfirm: (value: string, coords?: Coordinates) => void;
 }) {
   const [position, setPosition] = useState<Coordinates>(() => parseCoordinates(value) ?? MELBOURNE_CENTER);
   const [resolving, setResolving] = useState(false);
@@ -101,7 +101,7 @@ export function LocationPickerDialog({
     setSaving(true);
     const label = addressPreview || (await reverseGeocodeLocation(position));
     setSaving(false);
-    onConfirm(label);
+    onConfirm(label, position);
     onOpenChange(false);
   };
 
