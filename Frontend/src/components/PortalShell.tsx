@@ -3,7 +3,7 @@ import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { NavLink } from "@/components/NavLink";
 import {
-  Truck, Brain, Wrench, BarChart3, Send, History, LogOut, ChevronRight, Route, CreditCard, ChevronDown,
+  Truck, Brain, Wrench, BarChart3, Send, History, LogOut, ChevronRight, Route, ChevronDown,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -31,13 +31,11 @@ export function PortalShell({
     { to: "/carrier",          label: "AI Load Matcher", icon: Brain, end: true },
     { to: "/carrier/fleet",    label: "Fleet Management",icon: Wrench },
     { to: "/carrier/route",    label: "Route Optimizer", icon: Route },
-    { to: "/carrier/billing",  label: "Billing & Fees",  icon: CreditCard },
   ];
   const shipperNav = [
     { to: "/shipper",          label: "Dashboard",      icon: BarChart3, end: true },
     { to: "/shipper/post",     label: "Post Shipment",  icon: Send },
     { to: "/shipper/history",  label: "Shipment History", icon: History },
-    { to: "/shipper/billing",  label: "Billing & Fees", icon: CreditCard },
   ];
   const items = variant === "carrier" ? carrierNav : shipperNav;
   const activeIndex = Math.max(

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -14,7 +14,6 @@ import Auth from "./pages/Auth.tsx";
 import AIMatcher from "./pages/carrier/AIMatcher";
 import Fleet from "./pages/carrier/Fleet";
 import RouteOptimization from "./pages/carrier/RouteOptimization";
-import { BillingDemo } from "./pages/shared/BillingDemo";
 
 import ShipperDashboard from "./pages/shipper/Dashboard";
 import PostShipment from "./pages/shipper/PostShipment";
@@ -45,7 +44,7 @@ const App = () => (
               <Route path="matcher" element={<AIMatcher />} />
               <Route path="fleet" element={<Fleet />} />
               <Route path="route" element={<RouteOptimization />} />
-              <Route path="billing" element={<BillingDemo variant="carrier" />} />
+              <Route path="billing" element={<Navigate to="/carrier" replace />} />
             </Route>
 
             <Route
@@ -59,7 +58,7 @@ const App = () => (
               <Route index element={<ShipperDashboard />} />
               <Route path="post" element={<PostShipment />} />
               <Route path="history" element={<History />} />
-              <Route path="billing" element={<BillingDemo variant="shipper" />} />
+              <Route path="billing" element={<Navigate to="/shipper" replace />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />
