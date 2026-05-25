@@ -23,7 +23,6 @@ type Shipment = {
 };
 
 const PAGE = 6;
-type StatusFilter = "all" | "open" | "scheduled" | "in_transit" | "delivered" | "cancelled";
 type DateFilter = "all" | "7_days" | "30_days" | "this_month";
 
 export default function ShipmentHistory() {
@@ -32,7 +31,6 @@ export default function ShipmentHistory() {
   const [view, setView] = useState<"list" | "grid">("list");
   const [page, setPage] = useState(0);
   const [routeQuery, setRouteQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [loading, setLoading] = useState(true);
@@ -52,6 +50,8 @@ export default function ShipmentHistory() {
       .from("loads")
       .select("*")
       .eq("shipper_id", user.id)
+      .eq("status", "delivered")
+      .order("completed_at", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .then(({ data }) => {
         if (cancelled) return;
@@ -72,7 +72,7 @@ export default function ShipmentHistory() {
 
   useEffect(() => {
     setPage(0);
-  }, [categoryFilter, dateFilter, routeQuery, statusFilter]);
+  }, [categoryFilter, dateFilter, routeQuery]);
 
   const filteredShipments = useMemo(() => {
     const query = routeQuery.trim().toLowerCase();
@@ -82,10 +82,6 @@ export default function ShipmentHistory() {
       if (query) {
         const routeText = `${shipment.origin} ${shipment.destination}`.toLowerCase();
         if (!routeText.includes(query)) return false;
-      }
-
-      if (statusFilter !== "all" && shipment.status !== statusFilter) {
-        return false;
       }
 
       if (categoryFilter !== "all" && normalizeDryGoodsCategory(shipment.load_type) !== categoryFilter) {
@@ -99,7 +95,7 @@ export default function ShipmentHistory() {
 
       return true;
     });
-  }, [categoryFilter, dateFilter, routeQuery, shipments, statusFilter]);
+  }, [categoryFilter, dateFilter, routeQuery, shipments]);
 
   const slice = filteredShipments.slice(page * PAGE, page * PAGE + PAGE);
   const pages = Math.max(1, Math.ceil(filteredShipments.length / PAGE));
@@ -124,16 +120,14 @@ export default function ShipmentHistory() {
 
       {!loading && (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <HistoryStat label="Total Shipments" value={stats.total.toLocaleString("en-AU")} />
-            <HistoryStat label="Completed" value={stats.completed.toLocaleString("en-AU")} />
-            <HistoryStat label="Pending" value={stats.pending.toLocaleString("en-AU")} />
+          <div className="grid gap-3 sm:grid-cols-3">
+            <HistoryStat label="Fulfilled Loads" value={stats.total.toLocaleString("en-AU")} />
             <HistoryStat label="Total Shipping Cost" value={formatCurrency(stats.totalCost)} />
             <HistoryStat label="Avg Delivery Time" value={stats.averageDeliveryHours == null ? "--" : `${stats.averageDeliveryHours.toFixed(1)} h`} />
           </div>
 
           {/* Filter row */}
-          <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[80px_minmax(220px,1fr)_140px_170px_145px_auto]">
+          <div className="grid grid-cols-1 items-center gap-3 lg:grid-cols-[80px_minmax(220px,1fr)_170px_145px_auto]">
             <div
               className="relative grid h-9 w-20 grid-cols-2 rounded-md surface-2 p-1"
               role="tablist"
@@ -178,19 +172,6 @@ export default function ShipmentHistory() {
               />
             </div>
             <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
-              className="h-9 w-full rounded-md surface-2 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
-              aria-label="Filter by status"
-            >
-              <option value="all">All statuses</option>
-              <option value="open">Open</option>
-              <option value="scheduled">Scheduled</option>
-              <option value="in_transit">In transit</option>
-              <option value="delivered">Delivered</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-            <select
               value={categoryFilter}
               onChange={(event) => setCategoryFilter(event.target.value)}
               className="h-9 w-full rounded-md surface-2 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
@@ -221,7 +202,6 @@ export default function ShipmentHistory() {
               type="button"
               onClick={() => {
                 setRouteQuery("");
-                setStatusFilter("all");
                 setCategoryFilter("all");
                 setDateFilter("all");
               }}
@@ -261,7 +241,7 @@ export default function ShipmentHistory() {
             ))}
             {slice.length === 0 && (
               <div className="surface-2 rounded-xl p-10 text-center text-sm text-muted-foreground">
-                {shipments.length === 0 ? "No shipment history yet." : "No shipments match the current filters."}
+                {shipments.length === 0 ? "No fulfilled shipments yet." : "No fulfilled shipments match the current filters."}
               </div>
             )}
           </div>
@@ -281,15 +261,9 @@ export default function ShipmentHistory() {
 }
 
 function getHistoryStats(shipments: Shipment[]) {
-  const completed = shipments.filter((shipment) => shipment.status === "delivered").length;
-  const pending = shipments.filter((shipment) =>
-    ["open", "scheduled", "in_transit"].includes(shipment.status),
-  ).length;
   const totalCost = shipments
-    .filter((shipment) => shipment.status !== "cancelled")
     .reduce((sum, shipment) => sum + Number(shipment.net_margin ?? 0), 0);
   const deliveryDurations = shipments
-    .filter((shipment) => shipment.status === "delivered")
     .map((shipment) => {
       const pickup = new Date(shipment.pickup_time).getTime();
       const delivered = new Date(shipment.completed_at ?? shipment.dropoff_time).getTime();
@@ -304,8 +278,6 @@ function getHistoryStats(shipments: Shipment[]) {
 
   return {
     total: shipments.length,
-    completed,
-    pending,
     totalCost,
     averageDeliveryHours,
   };
