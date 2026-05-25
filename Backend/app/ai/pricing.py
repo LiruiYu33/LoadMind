@@ -11,6 +11,8 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+MINIMUM_SUGGESTED_PRICE_AUD = 250.0
+
 # Load model at module initialization
 _MODEL = None
 _MODEL_PATH = Path(__file__).parent.parent.parent / "xgboost_pricing_model.json"
@@ -95,6 +97,29 @@ async def get_exchange_rate() -> float:
         exchange_rate = 1.5  # fallback
 
     return float(exchange_rate)
+
+
+def estimate_fallback_price_aud(weight_kg: float, cargo: str, load_type: str) -> float:
+    """Estimate a conservative fallback price when live pricing is unavailable."""
+    cargo_label = cargo.strip()
+    load_type_label = load_type.strip().lower()
+
+    weight_component = max(weight_kg * 0.08, 0.0)
+    cargo_component = min(len(cargo_label) * 0.5, 35.0) if cargo_label else 0.0
+    special_handling_component = 0.0
+    if any(
+        term in load_type_label
+        for term in ("refrigerated", "temperature-controlled", "hazard", "oversize")
+    ):
+        special_handling_component = 60.0
+
+    estimated_price = (
+        MINIMUM_SUGGESTED_PRICE_AUD
+        + weight_component
+        + cargo_component
+        + special_handling_component
+    )
+    return float(round(max(MINIMUM_SUGGESTED_PRICE_AUD, estimated_price), 2))
 
 
 async def calculate_price(
