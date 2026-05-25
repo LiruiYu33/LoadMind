@@ -40,6 +40,18 @@ export default function PostShipment() {
 
   const formatAudPrice = (value: number) => `AUD ${Math.round(value).toLocaleString("en-AU")}`;
 
+  const estimateFallbackPrice = () => {
+    const weight = Number(form.weight);
+    const cargoLabel = form.cargo.trim();
+    const weightComponent = Number.isFinite(weight) && weight > 0 ? weight * 0.08 : 0;
+    const cargoComponent = cargoLabel ? Math.min(cargoLabel.length * 0.5, 35) : 0;
+    const specialHandlingComponent = /refrigerated|temperature-controlled|hazard|oversize/i.test(form.category)
+      ? 60
+      : 0;
+
+    return Math.max(250, Math.round(250 + weightComponent + cargoComponent + specialHandlingComponent));
+  };
+
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -132,19 +144,19 @@ export default function PostShipment() {
       setPriceAccepted(false);
       toast({ title: "Price suggested", description: "AI suggested a marketplace price." });
     } catch (err: unknown) {
-      const fallbackMessage =
-        "AI price suggestion is currently unavailable. Enter a shipment value manually and tick the price acceptance box to continue.";
-      setSuggestedPrice(null);
+      const fallbackPrice = estimateFallbackPrice();
+      const fallbackMessage = `AI price suggestion is currently unavailable. A fallback price of ${formatAudPrice(fallbackPrice)} was applied.`;
+      setSuggestedPrice(fallbackPrice);
       setDistanceMiles(null);
       setPureDrivingHours(null);
       setActualDurationHours(null);
       setSuggestionReason(fallbackMessage);
       setSuggestionError(fallbackMessage);
+      setEditedPrice(String(Math.round(fallbackPrice)));
       setPriceAccepted(false);
       toast({
-        title: "Use manual price",
+        title: "Fallback price applied",
         description: err instanceof Error ? `${fallbackMessage} (${err.message})` : fallbackMessage,
-        variant: "destructive",
       });
     } finally {
       setSuggestionLoading(false);
