@@ -15,7 +15,7 @@ type Shipment = {
   assigned_carrier_name: string | null;
   status: string;
   weight_kg: number;
-  net_margin: number | null;
+  value: number;
   pickup_time: string;
   dropoff_time: string;
   completed_at: string | null;
@@ -234,8 +234,8 @@ export default function ShipmentHistory() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="label-eyebrow">NET MARGIN</div>
-                  <span className="pill pill-on-time mt-1 font-display text-base font-bold">${Number(s.net_margin || 0).toLocaleString()}</span>
+                  <div className="label-eyebrow">SHIPPING COST</div>
+                  <span className="pill pill-on-time mt-1 font-display text-base font-bold">${Number(s.value || 0).toLocaleString()}</span>
                 </div>
               </article>
             ))}
@@ -262,7 +262,7 @@ export default function ShipmentHistory() {
 
 function getHistoryStats(shipments: Shipment[]) {
   const totalCost = shipments
-    .reduce((sum, shipment) => sum + Number(shipment.net_margin ?? 0), 0);
+    .reduce((sum, shipment) => sum + Number(shipment.value ?? 0), 0);
   const deliveryDurations = shipments
     .map((shipment) => {
       const pickup = new Date(shipment.pickup_time).getTime();
