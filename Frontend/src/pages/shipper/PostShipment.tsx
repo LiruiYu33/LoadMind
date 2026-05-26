@@ -59,6 +59,22 @@ export default function PostShipment() {
     setForm((f) => ({ ...f, [k]: value }));
   };
 
+  const setNonNegativeNumber = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (value === "") {
+      setValue(k, value);
+      return;
+    }
+
+    const number = Number(value);
+    if (!Number.isFinite(number) || number < 0) return;
+    setValue(k, value);
+  };
+
+  const preventNegativeNumberInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "-" || e.key === "+") e.preventDefault();
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -79,6 +95,27 @@ export default function PostShipment() {
 
     if (dropoffTime <= pickupTime) {
       toast({ title: "Time sequence invalid", description: "Dropoff time must be after pickup time.", variant: "destructive" });
+      return;
+    }
+
+    const numericFields = [
+      { label: "Weight", value: form.weight, required: true },
+      { label: "Length", value: form.length, required: false },
+      { label: "Width", value: form.width, required: false },
+      { label: "Height", value: form.height, required: false },
+    ];
+    const invalidField = numericFields.find((field) => {
+      if (!field.value) return field.required;
+      const number = Number(field.value);
+      return !Number.isFinite(number) || number < 0 || (field.required && number === 0);
+    });
+
+    if (invalidField) {
+      toast({
+        title: "Invalid cargo dimensions",
+        description: `${invalidField.label} must be a non-negative number${invalidField.required ? " greater than zero" : ""}.`,
+        variant: "destructive",
+      });
       return;
     }
 
@@ -192,12 +229,52 @@ export default function PostShipment() {
               </select>
             </Field>
             <Field label="Weight (kg)" required>
-              <input required type="number" value={form.weight} onChange={set("weight")} placeholder="24000" className="loadmind-input" />
+              <input
+                required
+                type="number"
+                min="0"
+                step="1"
+                value={form.weight}
+                onChange={setNonNegativeNumber("weight")}
+                onKeyDown={preventNegativeNumberInput}
+                placeholder="24000"
+                className="loadmind-input"
+              />
             </Field>
             <div className="grid grid-cols-3 gap-2">
-              <Field label="L (cm)"><input value={form.length} onChange={set("length")} className="loadmind-input" /></Field>
-              <Field label="W (cm)"><input value={form.width} onChange={set("width")} className="loadmind-input" /></Field>
-              <Field label="H (cm)"><input value={form.height} onChange={set("height")} className="loadmind-input" /></Field>
+              <Field label="L (cm)">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={form.length}
+                  onChange={setNonNegativeNumber("length")}
+                  onKeyDown={preventNegativeNumberInput}
+                  className="loadmind-input"
+                />
+              </Field>
+              <Field label="W (cm)">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={form.width}
+                  onChange={setNonNegativeNumber("width")}
+                  onKeyDown={preventNegativeNumberInput}
+                  className="loadmind-input"
+                />
+              </Field>
+              <Field label="H (cm)">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={form.height}
+                  onChange={setNonNegativeNumber("height")}
+                  onKeyDown={preventNegativeNumberInput}
+                  className="loadmind-input"
+                />
+              </Field>
             </div>
             <div className="sm:col-span-2">
               <Field label="Additional Load Notes">
@@ -381,11 +458,16 @@ export default function PostShipment() {
       <style>{`
         .loadmind-input {
           width: 100%; height: 42px; padding: 0 0.75rem; border-radius: 0.375rem;
-          background: hsl(var(--surface-container-lowest));
+          border: 1px solid hsl(var(--border));
+          background: hsl(var(--background));
           font-size: 0.875rem; outline: none;
-          transition: box-shadow 0.15s ease;
+          box-shadow: 0 1px 2px hsl(var(--foreground) / 0.04);
+          transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
-        .loadmind-input:focus { box-shadow: 0 0 0 2px hsl(var(--primary)); }
+        .loadmind-input:focus {
+          border-color: hsl(var(--primary));
+          box-shadow: 0 0 0 2px hsl(var(--primary) / 0.22);
+        }
         .loadmind-textarea {
           min-height: 96px;
           height: auto;
