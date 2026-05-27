@@ -8,6 +8,7 @@ LoadMind is an MVP for dry-goods freight matching. It supports two user roles:
 
 - Shippers post dry-goods shipments with pickup and delivery details.
 - Carriers review open loads, inspect route information, and assign loads to vehicles.
+- Carrier assignment candidates are filtered by theoretical capability: vehicle status, schedule conflict, remaining capacity, and trailer dimensions.
 - The backend provides authenticated APIs for load creation, load assignment, confirmation events, and AI-assisted price suggestions.
 - Supabase provides authentication and database services.
 - OpenStreetMap and route/geocoding services support address lookup and route visualisation.
@@ -34,6 +35,8 @@ The MVP does not intentionally collect payment card data, health data, governmen
 - The frontend detects backend or frontend service restarts and signs the user out locally to reduce stale shared-session risk during demonstrations.
 - Address selection writes readable street addresses back into forms instead of exposing raw coordinates as the main user-facing value.
 - Dry-goods category options are constrained in the frontend, and a Supabase migration normalises older sample data.
+- Shipment posting and vehicle registration include frontend validation for positive numeric values and valid pickup/dropoff time order.
+- Backend schemas reject invalid load weights, dimensions, values, and invalid pickup/dropoff ordering before creating or pricing a load.
 - Git ignore rules exclude local caches, virtual environments, generated Python cache files, and other local build artifacts.
 - CI currently performs backend compile checks on the available GitLab shell runner.
 
@@ -64,6 +67,7 @@ These principles are aligned with guidance from the Australian Privacy Principle
 | Ambiguous address geocoding | A load map may show the wrong pickup or delivery point. | Address autocomplete, map pin selection, and known address aliases improve accuracy. | Store verified coordinates alongside full street addresses and show a confirmation preview before submission. |
 | Third-party map or routing outage | Address selection, route maps, or price suggestions may fail. | Manual address entry remains available. | Add cached geocoding results and graceful fallback messages. |
 | AI price suggestion over-trust | Users may treat model output as a guaranteed market price. | Price reasoning is shown as an explanation, not a binding quote. | Add explicit confidence bands, historical comparison data, and human review labels. |
+| Incorrect vehicle assignment | A carrier may assign a load to a truck that cannot physically or operationally take it. | UI candidate filtering and backend assignment validation check status, time conflict, capacity, and trailer dimensions. | Add database-side constraints, stronger dispatch rules, and automated tests for edge cases. |
 | Incomplete dry-goods enforcement in old data | Old sample categories may conflict with product positioning. | Frontend category options are restricted; migration normalises existing records. | Add database constraints or lookup tables for allowed dry-goods categories. |
 | Session reuse on shared device | Another person may access a previously logged-in session after service restart. | Service restart detection forces local sign-out. | Add configurable inactivity timeout and optional MFA through Supabase. |
 | Limited automated testing | Regressions may be missed before demo. | CI runs backend compile checks; frontend lint/build/test can be run locally. | Add meaningful frontend unit tests, backend route tests, and CI frontend checks when a Node/Docker runner is available. |
