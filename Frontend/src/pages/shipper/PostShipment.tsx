@@ -59,7 +59,7 @@ export default function PostShipment() {
     setForm((f) => ({ ...f, [k]: value }));
   };
 
-  const setNonNegativeNumber = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const setPositiveIntegerNumber = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value === "") {
       setValue(k, value);
@@ -67,12 +67,76 @@ export default function PostShipment() {
     }
 
     const number = Number(value);
-    if (!Number.isFinite(number) || number < 0) return;
+    if (!/^\d+$/.test(value) || !Number.isFinite(number) || number <= 0) return;
     setValue(k, value);
   };
 
-  const preventNegativeNumberInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "-" || e.key === "+") e.preventDefault();
+  const setPositivePrice = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setPriceAccepted(false);
+
+    if (value === "") {
+      setEditedPrice(value);
+      return;
+    }
+
+    const number = Number(value);
+    if (!/^\d+$/.test(value) || !Number.isFinite(number) || number <= 0) return;
+    setEditedPrice(value);
+  };
+
+  const preventIntegerInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (["-", "+", ".", "e", "E"].includes(e.key)) e.preventDefault();
+  };
+
+  const getInvalidCargoNumberField = () => {
+    const numericFields = [
+      { label: "Weight", value: form.weight, required: true },
+      { label: "Length", value: form.length, required: false },
+      { label: "Width", value: form.width, required: false },
+      { label: "Height", value: form.height, required: false },
+    ];
+
+    return numericFields.find((field) => {
+      if (!field.value) return field.required;
+      const number = Number(field.value);
+      return !Number.isFinite(number) || number <= 0;
+    });
+  };
+
+  const showCargoNumberError = (field: { label: string; required: boolean }) => {
+    toast({
+      title: "Invalid cargo dimensions",
+      description: `${field.label} must be a number greater than zero${field.required ? "" : " or left blank"}.`,
+      variant: "destructive",
+    });
+  };
+
+  const validateCargoNumbers = () => {
+    const invalidField = getInvalidCargoNumberField();
+    if (!invalidField) return true;
+    showCargoNumberError(invalidField);
+    return false;
+  };
+
+  const getValidatedTimes = () => {
+    const pickupTime = new Date(form.pickupTime);
+    const dropoffTime = new Date(form.dropoffTime);
+
+    if (
+      Number.isNaN(pickupTime.getTime()) ||
+      Number.isNaN(dropoffTime.getTime())
+    ) {
+      toast({ title: "Invalid times", description: "Please provide valid pickup and dropoff times.", variant: "destructive" });
+      return null;
+    }
+
+    if (dropoffTime <= pickupTime) {
+      toast({ title: "Time sequence invalid", description: "Dropoff time must be after pickup time.", variant: "destructive" });
+      return null;
+    }
+
+    return { pickupTime, dropoffTime };
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -82,40 +146,15 @@ export default function PostShipment() {
       toast({ title: "Accept a price", description: "Please accept a suggested or modified price before posting.", variant: "destructive" });
       return;
     }
-    const pickupTime = new Date(form.pickupTime);
-    const dropoffTime = new Date(form.dropoffTime);
+    const times = getValidatedTimes();
+    if (!times) return;
+    const { pickupTime, dropoffTime } = times;
 
-    if (
-      Number.isNaN(pickupTime.getTime()) ||
-      Number.isNaN(dropoffTime.getTime())
-    ) {
-      toast({ title: "Invalid times", description: "Please provide valid pickup and dropoff times.", variant: "destructive" });
-      return;
-    }
+    if (!validateCargoNumbers()) return;
 
-    if (dropoffTime <= pickupTime) {
-      toast({ title: "Time sequence invalid", description: "Dropoff time must be after pickup time.", variant: "destructive" });
-      return;
-    }
-
-    const numericFields = [
-      { label: "Weight", value: form.weight, required: true },
-      { label: "Length", value: form.length, required: false },
-      { label: "Width", value: form.width, required: false },
-      { label: "Height", value: form.height, required: false },
-    ];
-    const invalidField = numericFields.find((field) => {
-      if (!field.value) return field.required;
-      const number = Number(field.value);
-      return !Number.isFinite(number) || number < 0 || (field.required && number === 0);
-    });
-
-    if (invalidField) {
-      toast({
-        title: "Invalid cargo dimensions",
-        description: `${invalidField.label} must be a non-negative number${invalidField.required ? " greater than zero" : ""}.`,
-        variant: "destructive",
-      });
+    const acceptedPrice = editedPrice ? Number(editedPrice) : suggestedPrice;
+    if (!Number.isFinite(acceptedPrice) || acceptedPrice == null || acceptedPrice <= 0) {
+      toast({ title: "Invalid price", description: "Price must be greater than zero.", variant: "destructive" });
       return;
     }
 
@@ -129,7 +168,7 @@ export default function PostShipment() {
         destination: form.destination,
         weight_kg: weight,
         load_type: form.category,
-        value: editedPrice ? Number(editedPrice) : suggestedPrice ?? undefined,
+        value: acceptedPrice,
         length_cm: form.length ? Number(form.length) : null,
         width_cm: form.width ? Number(form.width) : null,
         height_cm: form.height ? Number(form.height) : null,
@@ -156,6 +195,9 @@ export default function PostShipment() {
       toast({ title: "Incomplete data", description: "Please fill origin, destination, weight and times to get a price suggestion.", variant: "destructive" });
       return;
     }
+    const times = getValidatedTimes();
+    if (!times || !validateCargoNumbers()) return;
+
     setSuggestionLoading(true);
     setSuggestionError(null);
     try {
@@ -168,8 +210,8 @@ export default function PostShipment() {
         length_cm: form.length ? Number(form.length) : null,
         width_cm: form.width ? Number(form.width) : null,
         height_cm: form.height ? Number(form.height) : null,
-        pickup_time: new Date(form.pickupTime).toISOString(),
-        dropoff_time: new Date(form.dropoffTime).toISOString(),
+        pickup_time: times.pickupTime.toISOString(),
+        dropoff_time: times.dropoffTime.toISOString(),
       });
       setSuggestedPrice(resp.suggested_price);
       setDistanceMiles(resp.distance_miles ?? null);
@@ -219,7 +261,7 @@ export default function PostShipment() {
         <Section number="01" icon={Package} title="Cargo Details">
           <div className="grid sm:grid-cols-2 gap-4">
             <Field label="Item Description" required>
-              <input required value={form.cargo} onChange={set("cargo")} placeholder="e.g. Palletized non-perishable groceries" className="loadmind-input" />
+              <input required value={form.cargo} onChange={set("cargo")} placeholder="e.g. Palletized non-perishable groceries" maxLength={240} className="loadmind-input" />
             </Field>
             <Field label="Category">
               <select value={form.category} onChange={set("category")} className="loadmind-input">
@@ -232,11 +274,11 @@ export default function PostShipment() {
               <input
                 required
                 type="number"
-                min="0"
+                min="1"
                 step="1"
                 value={form.weight}
-                onChange={setNonNegativeNumber("weight")}
-                onKeyDown={preventNegativeNumberInput}
+                onChange={setPositiveIntegerNumber("weight")}
+                onKeyDown={preventIntegerInput}
                 placeholder="24000"
                 className="loadmind-input"
               />
@@ -245,33 +287,33 @@ export default function PostShipment() {
               <Field label="L (cm)">
                 <input
                   type="number"
-                  min="0"
+                  min="1"
                   step="1"
                   value={form.length}
-                  onChange={setNonNegativeNumber("length")}
-                  onKeyDown={preventNegativeNumberInput}
+                  onChange={setPositiveIntegerNumber("length")}
+                  onKeyDown={preventIntegerInput}
                   className="loadmind-input"
                 />
               </Field>
               <Field label="W (cm)">
                 <input
                   type="number"
-                  min="0"
+                  min="1"
                   step="1"
                   value={form.width}
-                  onChange={setNonNegativeNumber("width")}
-                  onKeyDown={preventNegativeNumberInput}
+                  onChange={setPositiveIntegerNumber("width")}
+                  onKeyDown={preventIntegerInput}
                   className="loadmind-input"
                 />
               </Field>
               <Field label="H (cm)">
                 <input
                   type="number"
-                  min="0"
+                  min="1"
                   step="1"
                   value={form.height}
-                  onChange={setNonNegativeNumber("height")}
-                  onKeyDown={preventNegativeNumberInput}
+                  onChange={setPositiveIntegerNumber("height")}
+                  onKeyDown={preventIntegerInput}
                   className="loadmind-input"
                 />
               </Field>
@@ -393,10 +435,12 @@ export default function PostShipment() {
                 <span className="text-sm font-semibold text-muted-foreground">AUD</span>
                 <input
                   type="number"
+                  min="1"
                   step="1"
                   value={editedPrice}
-                  onChange={(e) => { setEditedPrice(e.target.value); setPriceAccepted(false); }}
-                  placeholder="0"
+                  onChange={setPositivePrice}
+                  onKeyDown={preventIntegerInput}
+                  placeholder="350"
                   className="w-full bg-transparent text-lg font-semibold outline-none"
                 />
               </div>

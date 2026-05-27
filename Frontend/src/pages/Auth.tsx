@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Truck, Package, ArrowRight, ShieldCheck, LockKeyhole, Database, MapPinned } from "lucide-react";
+import { Truck, Package, ArrowRight, ShieldCheck, LockKeyhole, Database, MapPinned, Eye, EyeOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, AppRole } from "@/lib/auth";
 import { toast } from "@/hooks/use-toast";
@@ -32,6 +32,7 @@ const Auth = () => {
   const [role, setRole] = useState<AppRole>("carrier");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [rememberPassword, setRememberPassword] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -257,16 +258,27 @@ const Auth = () => {
                 </div>
                 <div>
                   <label className="label-eyebrow block mb-2">PASSWORD</label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    autoComplete={mode === "signin" ? "current-password" : "new-password"}
-                    className="w-full h-11 px-3 rounded-md surface-2 ring-1 ring-transparent focus:ring-primary outline-none transition"
-                    placeholder="••••••••"
-                  />
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      minLength={6}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                      className="w-full h-11 rounded-md surface-2 px-3 pr-11 ring-1 ring-transparent outline-none transition focus:ring-primary"
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((next) => !next)}
+                      className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-md text-muted-foreground transition hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                      aria-pressed={showPassword}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </div>
                 {mode === "signin" && (
                   <label className="flex items-center gap-2 text-sm text-muted-foreground">
