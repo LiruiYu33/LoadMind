@@ -118,10 +118,12 @@ Run it with:
 
 ```bash
 cd Backend
-python3.11 scripts/validate_pricing_model.py --show-rows
+python3.11 scripts/validate_pricing_model.py
 ```
 
 The committed dataset is a small synthetic dry-goods benchmark for demonstration support. It is useful for showing the validation method and comparing the XGBoost artifact with a rule-based baseline, but it should not be presented as production-grade freight pricing validation.
+
+The script now prints per-scenario rows by default. Use `--hide-rows` only if a shorter metrics-only output is needed.
 
 The script reports:
 
@@ -129,6 +131,11 @@ The script reports:
 - RMSE: error metric that penalises larger mistakes.
 - R2: explanatory power compared with a baseline.
 - Baseline comparison: compare XGBoost against a simple rule-based pricing formula.
+- Baseline formula:
+
+```text
+baseline_aud = 250 + distance_miles * 2.0 + weight_lbs * 0.006 + actual_duration_hours * 15
+```
 
 ## Known Limitations
 

@@ -26,9 +26,12 @@ The core workflow is validated manually through demonstration rehearsals.
 | Price suggestion is requested | Backend returns suggested price and reasoning. | `POST /api/v1/price-insights/suggest`. |
 | Carrier signs in | User enters Carrier portal. | Supabase Auth plus role selection. |
 | Carrier opens AI Load Matcher | Open loads appear as load cards. | Backend open-load API. |
+| Carrier filters/sorts AI Load Matcher | Loads can be searched, filtered by dry-goods category/weight, filtered by available trucks, and sorted by score, value, empty miles saved, or nearest pickup. | Manual demo check and frontend logic. |
 | Carrier views route map | Pickup and delivery markers are displayed. | Load route map component. |
-| Carrier assigns load | Load is assigned to selected vehicle. | Backend assign endpoint and Supabase update. |
-| User signs out | User returns to authentication flow. | Sign-out button remains visible in sidebar. |
+| Carrier assigns load | Load is assigned only to a theoretically capable vehicle. | Frontend candidate filtering plus backend assignment validation. |
+| Carrier registers vehicle | Required fields are marked and numeric fields reject zero/negative values. | Fleet Management form validation. |
+| Carrier optimizes route | Route optimizer accepts a truck, marketplace/custom stops, and optional fixed end stop. | Route Optimizer manual demo check. |
+| User signs out | User returns to authentication flow. | Sign-out is available from the avatar dropdown menu. |
 
 ## Technical Verification Commands
 
@@ -120,10 +123,10 @@ Run:
 
 ```bash
 cd Backend
-python3.11 scripts/validate_pricing_model.py --show-rows
+python3.11 scripts/validate_pricing_model.py
 ```
 
-The script prints MAE, RMSE, R2, a baseline comparison, and optional per-route prediction rows.
+The script prints MAE, RMSE, R2, a baseline comparison, and per-route prediction rows by default. Use `--hide-rows` to hide the row table.
 
 ## Recommended Model Metrics
 
@@ -150,7 +153,7 @@ Do not invent production claims from the synthetic benchmark. In the demo, descr
 A simple baseline could be:
 
 ```text
-reference_price = base_fee + distance_miles * rate_per_mile + weight_lbs * weight_rate
+baseline_aud = 250 + distance_miles * 2.0 + weight_lbs * 0.006 + actual_duration_hours * 15
 ```
 
 This baseline is useful because it is easy to explain. The XGBoost model should be justified by showing that it can capture non-linear interactions that a simple formula cannot.
@@ -164,6 +167,7 @@ This baseline is useful because it is easy to explain. The XGBoost model should 
 | User sees wrong portal | Test same email with Carrier and Shipper role selection. |
 | Stale session after restart | Restart backend/frontend and verify user is required to log in again. |
 | Assign Load dropdown blocked | Verify dropdown displays above maps and remains clickable. |
+| Ineligible truck assignment | Verify unavailable, over-capacity, dimension-mismatched, or time-conflicting trucks are not offered and backend assignment rejects them. |
 | Long details hidden | Verify details can be expanded in AI Load Matcher. |
 | Dry-goods scope drift | Verify only dry-goods categories appear in shipment form. |
 
@@ -175,8 +179,8 @@ This baseline is useful because it is easy to explain. The XGBoost model should 
 2. Open Post Shipment.
 3. Select a dry-goods category.
 4. Enter pickup and delivery addresses.
-5. Enter weight, dimensions, and times.
-6. Request price suggestion.
+5. Enter weight, optional dimensions, and times.
+6. Request price suggestion, edit the price if needed, and accept it.
 7. Submit shipment.
 
 Expected result: shipment is created and visible to carrier as an open load.
@@ -188,7 +192,8 @@ Expected result: shipment is created and visible to carrier as an open load.
 3. Confirm load card shows route, value, category, and map.
 4. Expand pickup/delivery details.
 5. Click Assign Load.
-6. Select vehicle.
+6. Confirm only theoretically capable vehicles are displayed.
+7. Select vehicle.
 
 Expected result: load is assigned and removed from open marketplace view.
 
