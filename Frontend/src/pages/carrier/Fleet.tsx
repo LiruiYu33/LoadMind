@@ -308,7 +308,7 @@ const vehicleSchema = z.object({
     .regex(/^[A-Za-z0-9_-]+$/, "Letters, numbers, _ and - only"),
   driver_name: z.string().trim().min(2, "Driver name is required").max(80, "Max 80 chars"),
   model: z.string().trim().min(2, "Model is required").max(80, "Max 80 chars"),
-  fuel_efficiency: z.coerce.number().positive("Must be > 0").max(100, "Max 100 km/L"),
+  fuel_efficiency: z.coerce.number().positive("Must be > 0").max(100, "Max 100 L/100km"),
   location: z.string().trim().max(240, "Max 240 chars").optional(),
   preferred_routes: z.string().trim().max(200, "Max 200 chars").optional(),
   trailers: z.array(trailerSchema).min(1, "Add at least 1 trailer").max(2, "Max 2 trailers"),
@@ -317,6 +317,18 @@ const vehicleSchema = z.object({
 type TrailerForm = { length_m: string; width_m: string; height_m: string; capacity_t: string };
 
 const emptyTrailer = (): TrailerForm => ({ length_m: "", width_m: "", height_m: "", capacity_t: "" });
+
+const preventDecimalNumberInput: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
+  if (["-", "+", "e", "E"].includes(e.key)) e.preventDefault();
+};
+
+function normalizePositiveDecimalInput(value: string) {
+  if (value === "") return value;
+  if (!/^\d+(?:\.\d*)?$/.test(value)) return null;
+
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? value : null;
+}
 
 function RegisterVehicleDialog({
   open,
@@ -388,6 +400,18 @@ function RegisterVehicleDialog({
 
   const updateTrailer = (idx: number, key: keyof TrailerForm, value: string) => {
     setTrailers((prev) => prev.map((t, i) => (i === idx ? { ...t, [key]: value } : t)));
+  };
+
+  const updateTrailerNumber = (idx: number, key: keyof TrailerForm, value: string) => {
+    const nextValue = normalizePositiveDecimalInput(value);
+    if (nextValue === null) return;
+    updateTrailer(idx, key, nextValue);
+  };
+
+  const setFuelConsumption = (value: string) => {
+    const nextValue = normalizePositiveDecimalInput(value);
+    if (nextValue === null) return;
+    setForm((current) => ({ ...current, fuel_efficiency: nextValue }));
   };
 
   const addTrailer = () => {
@@ -540,12 +564,16 @@ function RegisterVehicleDialog({
               maxLength={80}
             />
             <Field
-              label="Fuel Efficiency (km/L)"
+              label="Fuel Consumption (L/100km)"
               type="number"
-              placeholder="3.4"
+              placeholder="32"
               value={form.fuel_efficiency}
-              onChange={(v) => setForm({ ...form, fuel_efficiency: v })}
+              onChange={setFuelConsumption}
               error={errors.fuel_efficiency}
+              min="0.1"
+              step="0.1"
+              inputMode="decimal"
+              onKeyDown={preventDecimalNumberInput}
             />
             <Field
               label="Current Location"
@@ -576,11 +604,11 @@ function RegisterVehicleDialog({
 
           <Field
             label="Preferred Routes"
-            placeholder="MEL → SYD, MEL → ADL"
+            placeholder="Melbourne to Sydney, Melbourne to Adelaide"
             value={form.preferred_routes}
             onChange={(v) => setForm({ ...form, preferred_routes: v })}
             error={errors.preferred_routes}
-            hint="Comma separated lanes (optional)"
+            hint="Separate routes with commas. Example: Melbourne to Sydney, Melbourne to Adelaide."
             maxLength={200}
           />
 
@@ -626,32 +654,48 @@ function RegisterVehicleDialog({
                     type="number"
                     placeholder="13.6"
                     value={t.length_m}
-                    onChange={(v) => updateTrailer(idx, "length_m", v)}
+                    onChange={(v) => updateTrailerNumber(idx, "length_m", v)}
                     error={errors[`trailers.${idx}.length_m`]}
+                    min="0.1"
+                    step="0.1"
+                    inputMode="decimal"
+                    onKeyDown={preventDecimalNumberInput}
                   />
                   <Field
                     label="Width (m)"
                     type="number"
                     placeholder="2.5"
                     value={t.width_m}
-                    onChange={(v) => updateTrailer(idx, "width_m", v)}
+                    onChange={(v) => updateTrailerNumber(idx, "width_m", v)}
                     error={errors[`trailers.${idx}.width_m`]}
+                    min="0.1"
+                    step="0.1"
+                    inputMode="decimal"
+                    onKeyDown={preventDecimalNumberInput}
                   />
                   <Field
                     label="Height (m)"
                     type="number"
                     placeholder="2.7"
                     value={t.height_m}
-                    onChange={(v) => updateTrailer(idx, "height_m", v)}
+                    onChange={(v) => updateTrailerNumber(idx, "height_m", v)}
                     error={errors[`trailers.${idx}.height_m`]}
+                    min="0.1"
+                    step="0.1"
+                    inputMode="decimal"
+                    onKeyDown={preventDecimalNumberInput}
                   />
                   <Field
                     label="Capacity (t)"
                     type="number"
                     placeholder="24"
                     value={t.capacity_t}
-                    onChange={(v) => updateTrailer(idx, "capacity_t", v)}
+                    onChange={(v) => updateTrailerNumber(idx, "capacity_t", v)}
                     error={errors[`trailers.${idx}.capacity_t`]}
+                    min="0.1"
+                    step="0.1"
+                    inputMode="decimal"
+                    onKeyDown={preventDecimalNumberInput}
                   />
                 </div>
               </div>
@@ -690,6 +734,10 @@ function Field({
   placeholder,
   hint,
   maxLength,
+  min,
+  step,
+  inputMode,
+  onKeyDown,
   action,
   addressAutocomplete = false,
 }: {
@@ -701,6 +749,10 @@ function Field({
   placeholder?: string;
   hint?: string;
   maxLength?: number;
+  min?: string;
+  step?: string;
+  inputMode?: "decimal" | "numeric" | "text";
+  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>;
   action?: ReactNode;
   addressAutocomplete?: boolean;
 }) {
@@ -729,6 +781,10 @@ function Field({
           value={value}
           placeholder={placeholder}
           maxLength={maxLength}
+          min={min}
+          step={step}
+          inputMode={inputMode}
+          onKeyDown={onKeyDown}
           onChange={(e) => onChange(e.target.value)}
           className={`w-full h-10 px-3 rounded-md surface-3 text-sm outline-none ring-1 ring-transparent focus:ring-primary transition ${
             error ? "ring-destructive focus:ring-destructive" : ""
