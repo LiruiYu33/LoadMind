@@ -11,14 +11,19 @@ The product is designed around the common logistics workflow where a shipper cre
 
 - Role-based authentication for **Carrier** and **Shipper** users.
 - The same email account can be used for both roles. The active portal depends on the role selected during login.
-- Carrier **AI Load Matcher** page with load cards, matching scores, route information, and assignment actions.
-- Shipper shipment posting flow with route, cargo, schedule, and price information.
+- Carrier **AI Load Matcher** page with load cards, matching scores, route information, sorting/filter controls, and assignment actions.
+- Carrier assignment only shows vehicles that are theoretically capable of taking the load, based on vehicle status, schedule conflict, capacity, and trailer dimensions.
+- Carrier **Route Optimizer** page for selecting a truck, adding marketplace/custom stops, and calculating an optimized stop order.
+- Carrier **Fleet Management** page for registering vehicles and trailers, including required-field markers and numeric validation for fuel consumption and trailer capacity/dimensions.
+- Shipper shipment posting flow with route, cargo, schedule, AI price suggestion, editable accepted price, and optional load notes.
+- Shipper dashboard support for posted loads, cancelled load restore, active shipments, and confirmation actions.
+- Shipper history page showing fulfilled shipments with route, category, date filters, list/grid view, and summary statistics.
 - OpenStreetMap-based address selection:
   - map pin selector for address fields,
   - manual address entry with autocomplete candidates,
   - full street addresses are written back into form fields instead of raw coordinates.
 - Small route maps on load cards showing pickup and delivery points.
-- Backend API for load creation, load assignment, pickup confirmation, delivery confirmation, and price insight suggestions.
+- Backend API for load creation, load cancellation/restoration, load assignment, pickup confirmation, delivery confirmation, and price insight suggestions.
 
 ## Tech Stack
 
@@ -58,7 +63,7 @@ LoadMind/
 Install these tools before running the project locally:
 
 - Python 3.11 or newer
-- Node.js and npm
+- Node.js and npm. Node 20 LTS is recommended for consistent frontend dependency installs.
 - Git
 - Docker Desktop, optional but recommended if you want to run Redis with Docker Compose
 - A Supabase project with the required database tables and authentication enabled
@@ -182,10 +187,11 @@ The same email can be used as both a carrier and a shipper. Choose the role you 
 
 1. Go to `/shipper`.
 2. Open `/shipper/post`.
-3. Enter route information, cargo details, pickup/dropoff times, and shipment value.
+3. Enter route information, cargo details, pickup/dropoff times, optional load notes, and cargo dimensions if known.
 4. Pickup and delivery addresses can be typed manually with autocomplete or selected using the map pin button.
-5. Submit the shipment so carriers can see it in the load marketplace.
-6. Track posted shipments from the dashboard and history pages.
+5. Request an AI price suggestion, adjust the suggested price if needed, and accept the price.
+6. Submit the shipment so carriers can see it in the load marketplace.
+7. Track active, posted, cancelled, and fulfilled shipments from the dashboard and history pages.
 
 ## Backend API Overview
 
@@ -197,6 +203,8 @@ Useful routes include:
 - `GET /api/v1/loads/open`
 - `POST /api/v1/loads`
 - `POST /api/v1/loads/{load_id}/assign`
+- `POST /api/v1/loads/{load_id}/cancel`
+- `POST /api/v1/loads/{load_id}/restore`
 - `POST /api/v1/loads/{load_id}/confirm-pickup`
 - `POST /api/v1/loads/{load_id}/confirm-delivery`
 - `POST /api/v1/price-insights/suggest`
@@ -233,8 +241,10 @@ Backend:
 cd Backend
 python3.11 -m pip install -e .
 python3.11 -m py_compile app/main.py app/api/schemas/loads.py app/api/schemas/price_insights.py scripts/validate_pricing_model.py
-python3.11 scripts/validate_pricing_model.py --show-rows
+python3.11 scripts/validate_pricing_model.py
 ```
+
+The pricing validation script shows per-scenario rows by default. Use `--hide-rows` only when you want a shorter metrics-only output.
 
 ## GitLab CI/CD
 
@@ -252,7 +262,7 @@ Current backend pipeline behavior:
 
 - uses the `fit2107` runner tag,
 - installs the backend package with `python3.12 -m pip install -e .`,
-- compiles important backend files with `python3.12 -m py_compile`,
+- compiles the backend entrypoint and load schema with `python3.12 -m py_compile`,
 - caches pip downloads under `Backend/.cache/pip/`.
 
 When a Docker runner or a shell runner with Node/npm is available, frontend CI can be added back with jobs such as:
@@ -304,3 +314,4 @@ That means the job is running on a shell runner without Node/npm. Use a Docker r
 - Do not commit `.env`, cache folders, build outputs, or dependency folders.
 - Keep generated files such as `node_modules/`, `dist/`, `.cache/`, `.vite/`, and Python `__pycache__/` out of Git.
 - Keep address fields user-readable. Store or display full street addresses where the UI asks for an address, not raw latitude/longitude values.
+- Keep `Frontend/package-lock.json` tracked, but only commit it when frontend dependencies actually change. Different npm versions can rewrite it mechanically even when `package.json` is unchanged.
