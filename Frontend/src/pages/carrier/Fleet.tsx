@@ -327,7 +327,14 @@ function normalizePositiveDecimalInput(value: string) {
   if (!/^\d+(?:\.\d*)?$/.test(value)) return null;
 
   const number = Number(value);
-  return Number.isFinite(number) && number > 0 ? value : null;
+  if (!Number.isFinite(number)) return null;
+  return number === 0 ? "" : value;
+}
+
+function shouldClearSubunitNumberOnBackspace(value: string) {
+  if (value === "") return false;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 && number < 1;
 }
 
 function RegisterVehicleDialog({
@@ -541,6 +548,7 @@ function RegisterVehicleDialog({
           <div className="grid sm:grid-cols-2 gap-4">
             <Field
               label="Unit ID"
+              required
               placeholder="UNIT_MEL_07"
               value={form.unit_id}
               onChange={(v) => setForm({ ...form, unit_id: v })}
@@ -549,6 +557,7 @@ function RegisterVehicleDialog({
             />
             <Field
               label="Model"
+              required
               placeholder="Kenworth T610"
               value={form.model}
               onChange={(v) => setForm({ ...form, model: v })}
@@ -557,6 +566,7 @@ function RegisterVehicleDialog({
             />
             <Field
               label="Driver"
+              required
               placeholder="M. O'Connor"
               value={form.driver_name}
               onChange={(v) => setForm({ ...form, driver_name: v })}
@@ -565,6 +575,7 @@ function RegisterVehicleDialog({
             />
             <Field
               label="Fuel Consumption (L/100km)"
+              required
               type="number"
               placeholder="32"
               value={form.fuel_efficiency}
@@ -577,6 +588,7 @@ function RegisterVehicleDialog({
             />
             <Field
               label="Current Location"
+              optionalLabel="optional, recommended"
               placeholder="Melbourne, VIC"
               value={form.location}
               onChange={(v) => setForm({ ...form, location: v })}
@@ -604,6 +616,7 @@ function RegisterVehicleDialog({
 
           <Field
             label="Preferred Routes"
+            optionalLabel="optional"
             placeholder="Melbourne to Sydney, Melbourne to Adelaide"
             value={form.preferred_routes}
             onChange={(v) => setForm({ ...form, preferred_routes: v })}
@@ -616,8 +629,12 @@ function RegisterVehicleDialog({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <div className="label-eyebrow">TRAILERS</div>
-                <p className="text-xs text-muted-foreground mt-0.5">Add 1 or 2 trailers attached to this prime mover.</p>
+                <div className="label-eyebrow">
+                  TRAILERS<span className="text-destructive ml-1">*</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Add 1 or 2 trailers attached to this prime mover. At least 1 trailer is required.
+                </p>
               </div>
               <button
                 type="button"
@@ -651,6 +668,7 @@ function RegisterVehicleDialog({
                 <div className="grid sm:grid-cols-2 gap-3">
                   <Field
                     label="Length (m)"
+                    required
                     type="number"
                     placeholder="13.6"
                     value={t.length_m}
@@ -663,6 +681,7 @@ function RegisterVehicleDialog({
                   />
                   <Field
                     label="Width (m)"
+                    required
                     type="number"
                     placeholder="2.5"
                     value={t.width_m}
@@ -675,6 +694,7 @@ function RegisterVehicleDialog({
                   />
                   <Field
                     label="Height (m)"
+                    required
                     type="number"
                     placeholder="2.7"
                     value={t.height_m}
@@ -687,6 +707,7 @@ function RegisterVehicleDialog({
                   />
                   <Field
                     label="Capacity (t)"
+                    required
                     type="number"
                     placeholder="24"
                     value={t.capacity_t}
@@ -727,6 +748,8 @@ function RegisterVehicleDialog({
 
 function Field({
   label,
+  required = false,
+  optionalLabel,
   value,
   onChange,
   error,
@@ -742,6 +765,8 @@ function Field({
   addressAutocomplete = false,
 }: {
   label: string;
+  required?: boolean;
+  optionalLabel?: string;
   value: string;
   onChange: (v: string) => void;
   error?: string;
@@ -756,15 +781,35 @@ function Field({
   action?: ReactNode;
   addressAutocomplete?: boolean;
 }) {
+  const handleInputKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (event) => {
+    if (type === "number" && event.key === "Backspace" && shouldClearSubunitNumberOnBackspace(value)) {
+      event.preventDefault();
+      onChange("");
+      return;
+    }
+
+    onKeyDown?.(event);
+  };
+
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <label className="label-eyebrow block">{label}</label>
+        <label className="label-eyebrow flex items-center gap-1 whitespace-nowrap">
+          <span className="whitespace-nowrap">{label}</span>
+          {required ? (
+            <span className="text-destructive">*</span>
+          ) : optionalLabel ? (
+            <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold normal-case tracking-normal text-muted-foreground">
+              ({optionalLabel})
+            </span>
+          ) : null}
+        </label>
         {!addressAutocomplete && action}
       </div>
       {addressAutocomplete ? (
         <div className="relative">
           <AddressAutocompleteInput
+            required={required}
             value={value}
             placeholder={placeholder}
             maxLength={maxLength}
@@ -778,13 +823,14 @@ function Field({
       ) : (
         <input
           type={type}
+          required={required}
           value={value}
           placeholder={placeholder}
           maxLength={maxLength}
           min={min}
           step={step}
           inputMode={inputMode}
-          onKeyDown={onKeyDown}
+          onKeyDown={handleInputKeyDown}
           onChange={(e) => onChange(e.target.value)}
           className={`w-full h-10 px-3 rounded-md surface-3 text-sm outline-none ring-1 ring-transparent focus:ring-primary transition ${
             error ? "ring-destructive focus:ring-destructive" : ""
