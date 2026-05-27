@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class LoadCreateRequest(BaseModel):
-    cargo: str = Field(min_length=1, max_length=120)
+    cargo: str = Field(min_length=1, max_length=500)
     shipment_code: str | None = Field(default=None, min_length=3, max_length=40)
     origin: str = Field(min_length=1, max_length=240)
     destination: str = Field(min_length=1, max_length=240)
