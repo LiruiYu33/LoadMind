@@ -26,7 +26,7 @@ The core workflow is validated manually through demonstration rehearsals.
 | Price suggestion is requested | Backend returns suggested price and reasoning. | `POST /api/v1/price-insights/suggest`. |
 | Carrier signs in | User enters Carrier portal. | Supabase Auth plus role selection. |
 | Carrier opens AI Load Matcher | Open loads appear as load cards. | Backend open-load API. |
-| Carrier filters/sorts AI Load Matcher | Loads can be searched, filtered by dry-goods category/weight, filtered by available trucks, and sorted by score, value, empty miles saved, or nearest pickup. | Manual demo check and frontend logic. |
+| Carrier filters/sorts AI Load Matcher | Loads can be searched, filtered by dry-goods category/weight, filtered by available trucks, and sorted by load value, nearest pickup, or earliest pickup. | Manual demo check and frontend logic. |
 | Carrier views route map | Pickup and delivery markers are displayed. | Load route map component. |
 | Carrier assigns load | Load is assigned only to a theoretically capable vehicle. | Frontend candidate filtering plus backend assignment validation. |
 | Carrier registers vehicle | Required fields are marked and numeric fields reject zero/negative values. | Fleet Management form validation. |
