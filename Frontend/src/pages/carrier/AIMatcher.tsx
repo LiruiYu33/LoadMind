@@ -29,8 +29,6 @@ type Load = {
   load_type: string;
   value: number;
   predicted_margin: number;
-  empty_miles_saved: number | null;
-  match_score: number | null;
   ai_reasoning: string | null;
   pickup_time: string;
   dropoff_time: string;
@@ -66,7 +64,7 @@ type AssignedLoad = {
 };
 
 type WeightFilter = "all" | "under_5" | "5_to_15" | "15_plus";
-type SortMode = "score" | "value" | "empty_miles_saved" | "nearest_pickup";
+type SortMode = "value" | "nearest_pickup" | "earliest_pickup";
 type PickupSortLocation = {
   address: string;
   coords: Coordinates;
@@ -82,7 +80,7 @@ export default function AIMatcher() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [weightFilter, setWeightFilter] = useState<WeightFilter>("all");
   const [onlyAvailable, setOnlyAvailable] = useState(false);
-  const [sortMode, setSortMode] = useState<SortMode>("score");
+  const [sortMode, setSortMode] = useState<SortMode>("value");
   const [pickupSortLocation, setPickupSortLocation] = useState<PickupSortLocation | null>(null);
   const [pickupSortPickerOpen, setPickupSortPickerOpen] = useState(false);
   const [browserLocationLoading, setBrowserLocationLoading] = useState(false);
@@ -310,9 +308,9 @@ export default function AIMatcher() {
   return (
     <div className="p-6 lg:p-10 space-y-8">
       <div>
-        <div className="label-eyebrow mb-2">AI LOGIC ENGINE</div>
+        <div className="label-eyebrow mb-2">LOAD MATCHER</div>
         <h1 className="font-display text-3xl lg:text-4xl font-bold">AI Load Matcher</h1>
-        <p className="text-sm text-muted-foreground mt-1.5">Continuously scoring marketplace loads against your fleet.</p>
+        <p className="text-sm text-muted-foreground mt-1.5">Filter eligible marketplace loads and sort them by operational fields.</p>
       </div>
 
       <div className="space-y-4">
@@ -372,10 +370,9 @@ export default function AIMatcher() {
             className="ml-auto h-9 w-[160px] shrink-0 rounded-md surface-2 px-3 text-sm outline-none focus:ring-2 focus:ring-primary"
             aria-label="Sort loads"
           >
-            <option value="score">Sort: Score</option>
             <option value="value">Sort: Load Value</option>
-            <option value="empty_miles_saved">Sort: Empty Miles Saved</option>
             <option value="nearest_pickup">Sort: Nearest Pickup</option>
+            <option value="earliest_pickup">Sort: Earliest Pickup</option>
           </select>
         </div>
 
@@ -572,24 +569,23 @@ function compareLoads(
       distanceKm(pickupOrigin, pickupCoordsByLoad[a.id]),
       distanceKm(pickupOrigin, pickupCoordsByLoad[b.id]),
     ) ||
-      compareNumberDesc(a.match_score, b.match_score) ||
+      compareDateAsc(a.pickup_time, b.pickup_time) ||
       compareDateDesc(a.created_at, b.created_at);
   }
 
   if (sortMode === "value") {
     return compareNumberDesc(a.value, b.value) ||
-      compareNumberDesc(a.match_score, b.match_score) ||
+      compareDateAsc(a.pickup_time, b.pickup_time) ||
       compareDateDesc(a.created_at, b.created_at);
   }
 
-  if (sortMode === "empty_miles_saved") {
-    return compareNumberDesc(a.empty_miles_saved, b.empty_miles_saved) ||
-      compareNumberDesc(a.match_score, b.match_score) ||
+  if (sortMode === "earliest_pickup") {
+    return compareDateAsc(a.pickup_time, b.pickup_time) ||
+      compareNumberDesc(a.value, b.value) ||
       compareDateDesc(a.created_at, b.created_at);
   }
 
-  return compareNumberDesc(a.match_score, b.match_score) ||
-    compareDateDesc(a.created_at, b.created_at);
+  return compareDateDesc(a.created_at, b.created_at);
 }
 
 function compareNumberAsc(a: number | null | undefined, b: number | null | undefined) {
@@ -622,6 +618,18 @@ function compareDateDesc(a: string | null | undefined, b: string | null | undefi
   if (!leftValid) return 1;
   if (!rightValid) return -1;
   return right - left;
+}
+
+function compareDateAsc(a: string | null | undefined, b: string | null | undefined) {
+  const left = Date.parse(a ?? "");
+  const right = Date.parse(b ?? "");
+  const leftValid = Number.isFinite(left);
+  const rightValid = Number.isFinite(right);
+
+  if (!leftValid && !rightValid) return 0;
+  if (!leftValid) return 1;
+  if (!rightValid) return -1;
+  return left - right;
 }
 
 function numberForSort(value: number | null | undefined) {
