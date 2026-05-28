@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Truck, Edit3, X, Loader2, Trash2, MapPin } from "lucide-react";
+import { Plus, Truck, Edit3, X, Loader2, Trash2, MapPin, Archive, RotateCcw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { confirmLoadDelivery, confirmLoadPickup } from "@/lib/loads-api";
@@ -68,6 +68,9 @@ export default function FleetManagement() {
   const [assignedLoads, setAssignedLoads] = useState<AssignedLoad[]>([]);
   const [selected, setSelected] = useState<Vehicle | null>(null);
   const [actingLoadId, setActingLoadId] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
+  const [retireTarget, setRetireTarget] = useState<Vehicle | null>(null);
+  const [vehicleActionId, setVehicleActionId] = useState<string | null>(null);
 
   const refreshAssignedLoads = useCallback(() => {
     if (!user) {
@@ -88,7 +91,11 @@ export default function FleetManagement() {
     supabase.from("vehicles").select("*").order("unit_id").then(({ data }) => {
       const list = (data ?? []) as unknown as Vehicle[];
       setVehicles(list);
-      if (!selected && list[0]) setSelected(list[0]);
+      setSelected((current) => {
+        const visible = list.filter((vehicle) => showArchived || !isArchivedVehicle(vehicle));
+        if (current && visible.some((vehicle) => vehicle.id === current.id)) return current;
+        return visible[0] ?? null;
+      });
     });
 
   useEffect(() => { refresh(); }, []); // eslint-disable-line
@@ -128,6 +135,51 @@ export default function FleetManagement() {
 
   const [registerOpen, setRegisterOpen] = useState(false);
   const [editing, setEditing] = useState<Vehicle | null>(null);
+  const visibleVehicles = useMemo(
+    () => vehicles.filter((vehicle) => showArchived || !isArchivedVehicle(vehicle)),
+    [showArchived, vehicles],
+  );
+  const archivedCount = useMemo(() => vehicles.filter(isArchivedVehicle).length, [vehicles]);
+
+  useEffect(() => {
+    if (selected && visibleVehicles.some((vehicle) => vehicle.id === selected.id)) return;
+    setSelected(visibleVehicles[0] ?? null);
+  }, [selected, visibleVehicles]);
+
+  const updateVehicleStatus = async (vehicle: Vehicle, status: "idle" | "retired") => {
+    if (status === "retired" && vehicle.status.trim().toLowerCase() === "active") {
+      toast({
+        title: "Vehicle is currently active",
+        description: "Complete or reassign active loads before retiring this vehicle.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setVehicleActionId(vehicle.id);
+    const { error } = await supabase
+      .from("vehicles")
+      .update({ status })
+      .eq("id", vehicle.id);
+
+    setVehicleActionId(null);
+
+    if (error) {
+      toast({
+        title: status === "retired" ? "Could not retire vehicle" : "Could not restore vehicle",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: status === "retired" ? "Vehicle archived" : "Vehicle restored",
+      description: `${vehicle.unit_id} is now ${status === "retired" ? "hidden from active fleet lists" : "available in active fleet lists"}.`,
+    });
+    setRetireTarget(null);
+    refresh();
+  };
 
   return (
     <div className="p-6 lg:p-10 space-y-8">
@@ -161,30 +213,49 @@ export default function FleetManagement() {
         vehicle={editing}
       />
 
+      <RetireVehicleDialog
+        vehicle={retireTarget}
+        busy={vehicleActionId === retireTarget?.id}
+        onOpenChange={(open) => {
+          if (!open) setRetireTarget(null);
+        }}
+        onConfirm={(vehicle) => updateVehicleStatus(vehicle, "retired")}
+      />
+
       <section className="surface-2 rounded-xl ghost-shadow overflow-hidden">
-        <div className="p-5 flex items-center justify-between">
+        <div className="p-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <div className="label-eyebrow">ACTIVE ASSETS</div>
-            <h2 className="font-display text-lg font-bold mt-0.5">{vehicles.length} prime movers</h2>
+            <div className="label-eyebrow">{showArchived ? "ALL ASSETS" : "ACTIVE ASSETS"}</div>
+            <h2 className="font-display text-lg font-bold mt-0.5">
+              {visibleVehicles.length} prime movers
+            </h2>
           </div>
+          <button
+            type="button"
+            onClick={() => setShowArchived((current) => !current)}
+            className="h-9 rounded-md surface-3 px-3 text-xs font-semibold hover:lift-shadow"
+          >
+            {showArchived ? "Hide archived" : `Show archived (${archivedCount})`}
+          </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="surface-3">
               <tr className="text-left">
-                {["Vehicle", "Unit ID", "Model / Year", "Driver", "Last Journey", ""].map((h) => (
+                {["Vehicle", "Unit ID", "Model / Year", "Driver", "Status", "Last Journey", ""].map((h) => (
                   <th key={h} className="label-eyebrow font-semibold text-muted-foreground py-3 px-5">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {vehicles.map((v, idx) => {
+              {visibleVehicles.map((v, idx) => {
                 const isSel = selected?.id === v.id;
+                const archived = isArchivedVehicle(v);
                 return (
                   <tr
                     key={v.id}
                     onClick={() => setSelected(v)}
-                    className={`cursor-pointer transition ${isSel ? "bg-accent" : idx % 2 === 0 ? "bg-surface-lowest" : ""} hover:bg-accent/60`}
+                    className={`cursor-pointer transition ${archived ? "opacity-70" : ""} ${isSel ? "bg-accent" : idx % 2 === 0 ? "bg-surface-lowest" : ""} hover:bg-accent/60`}
                   >
                     <td className="px-5 py-4">
                       <div className="h-12 w-16 rounded-md grid place-items-center" style={{ background: "var(--gradient-primary)" }}>
@@ -200,22 +271,62 @@ export default function FleetManagement() {
                       <div>{v.driver_name}</div>
                       <span className="pill mt-1 pill-on-time">Assigned</span>
                     </td>
+                    <td className="px-5 py-4">
+                      <span className={`pill ${archived ? "surface-3 text-muted-foreground" : v.status === "active" ? "pill-active" : "pill-on-time"}`}>
+                        {formatVehicleStatus(v.status)}
+                      </span>
+                    </td>
                     <td className="px-5 py-4 text-muted-foreground">{lastJourneyByUnit[v.unit_id] ?? "—"}</td>
                     <td className="px-5 py-4 text-right">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditing(v);
-                        }}
-                        className="h-8 w-8 rounded-md grid place-items-center hover:surface-3"
-                        aria-label={`Edit ${v.unit_id}`}
-                      >
-                        <Edit3 className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex justify-end gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditing(v);
+                          }}
+                          className="h-8 w-8 rounded-md grid place-items-center hover:surface-3"
+                          aria-label={`Edit ${v.unit_id}`}
+                        >
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </button>
+                        {archived ? (
+                          <button
+                            disabled={vehicleActionId === v.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              updateVehicleStatus(v, "idle");
+                            }}
+                            className="h-8 w-8 rounded-md grid place-items-center hover:surface-3 disabled:opacity-50"
+                            aria-label={`Restore ${v.unit_id}`}
+                          >
+                            {vehicleActionId === v.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
+                          </button>
+                        ) : (
+                          <button
+                            disabled={vehicleActionId === v.id || v.status.trim().toLowerCase() === "active"}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRetireTarget(v);
+                            }}
+                            className="h-8 w-8 rounded-md grid place-items-center hover:bg-destructive/10 hover:text-destructive disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-current"
+                            aria-label={`Archive ${v.unit_id}`}
+                            title={v.status.trim().toLowerCase() === "active" ? "Complete active loads before archiving" : "Archive vehicle"}
+                          >
+                            <Archive className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );
               })}
+              {visibleVehicles.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-5 py-8 text-center text-sm text-muted-foreground">
+                    {showArchived ? "No vehicles registered yet." : "No active vehicles. Show archived vehicles to restore retired assets."}
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -293,6 +404,64 @@ export default function FleetManagement() {
         </div>
       </section>
     </div>
+  );
+}
+
+function isArchivedVehicle(vehicle: Vehicle) {
+  const status = vehicle.status.trim().toLowerCase();
+  return status === "retired" || status === "decommissioned";
+}
+
+function formatVehicleStatus(status: string) {
+  return status
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function RetireVehicleDialog({
+  vehicle,
+  busy,
+  onOpenChange,
+  onConfirm,
+}: {
+  vehicle: Vehicle | null;
+  busy: boolean;
+  onOpenChange: (open: boolean) => void;
+  onConfirm: (vehicle: Vehicle) => void;
+}) {
+  return (
+    <Dialog open={!!vehicle} onOpenChange={onOpenChange}>
+      <DialogContent className="surface-2 max-w-md border-0">
+        <DialogHeader>
+          <div className="label-eyebrow mb-2">FLEET ARCHIVE</div>
+          <DialogTitle className="font-display text-2xl font-bold">
+            Retire vehicle?
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            {vehicle
+              ? `${vehicle.unit_id} will be hidden from active fleet lists and excluded from AI load matching. Historical assignments remain linked.`
+              : "This vehicle will be hidden from active fleet lists."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            className="h-10 rounded-md surface-3 px-4 text-sm font-semibold hover:lift-shadow"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!vehicle || busy}
+            onClick={() => vehicle && onConfirm(vehicle)}
+            className="h-10 rounded-md bg-destructive px-4 text-sm font-semibold text-destructive-foreground disabled:opacity-60"
+          >
+            {busy ? "Archiving..." : "Retire Vehicle"}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
