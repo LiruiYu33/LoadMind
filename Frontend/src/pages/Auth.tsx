@@ -17,11 +17,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 
-const REMEMBERED_CREDENTIALS_KEY = "loadmind.rememberedCredentials.v1";
+const REMEMBERED_LOGIN_KEY = "loadmind.rememberedLogin.v2";
+const LEGACY_REMEMBERED_CREDENTIALS_KEY = "loadmind.rememberedCredentials.v1";
 
-type RememberedCredentials = {
+type RememberedLogin = {
   email: string;
-  password: string;
   role: AppRole;
 };
 
@@ -33,17 +33,17 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberPassword, setRememberPassword] = useState(false);
+  const [rememberLogin, setRememberLogin] = useState(false);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    const remembered = readRememberedCredentials();
+    clearLegacyRememberedCredentials();
+    const remembered = readRememberedLogin();
     if (!remembered) return;
 
     setEmail(remembered.email);
-    setPassword(remembered.password);
     setRole(remembered.role);
-    setRememberPassword(true);
+    setRememberLogin(true);
   }, []);
 
   const authErrorMessage = (err: unknown) => {
@@ -134,10 +134,10 @@ const Auth = () => {
         if (!uid) throw new Error("No account session was created.");
 
         const resolvedRole = await finishRoleSetup(uid, role);
-        if (rememberPassword) {
-          writeRememberedCredentials({ email, password, role });
+        if (rememberLogin) {
+          writeRememberedLogin({ email, role });
         } else {
-          clearRememberedCredentials();
+          clearRememberedLogin();
         }
         nav(resolvedRole === "carrier" ? "/carrier" : "/shipper");
       }
@@ -283,15 +283,15 @@ const Auth = () => {
                 {mode === "signin" && (
                   <label className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Checkbox
-                      checked={rememberPassword}
+                      checked={rememberLogin}
                       onCheckedChange={(checked) => {
                         const next = checked === true;
-                        setRememberPassword(next);
-                        if (!next) clearRememberedCredentials();
+                        setRememberLogin(next);
+                        if (!next) clearRememberedLogin();
                       }}
-                      aria-label="Remember password"
+                      aria-label="Remember email"
                     />
-                    Remember password
+                    Remember email
                   </label>
                 )}
 
@@ -331,38 +331,40 @@ function getErrorField(err: unknown, field: "message" | "code") {
   return String((err as Record<"message" | "code", unknown>)[field] ?? "");
 }
 
-function readRememberedCredentials(): RememberedCredentials | null {
+function readRememberedLogin(): RememberedLogin | null {
   try {
-    const raw = window.localStorage.getItem(REMEMBERED_CREDENTIALS_KEY);
+    const raw = window.localStorage.getItem(REMEMBERED_LOGIN_KEY);
     if (!raw) return null;
 
-    const parsed = JSON.parse(raw) as Partial<RememberedCredentials>;
+    const parsed = JSON.parse(raw) as Partial<RememberedLogin>;
     if (
       typeof parsed.email !== "string" ||
-      typeof parsed.password !== "string" ||
       (parsed.role !== "carrier" && parsed.role !== "shipper")
     ) {
-      clearRememberedCredentials();
+      clearRememberedLogin();
       return null;
     }
 
     return {
       email: parsed.email,
-      password: parsed.password,
       role: parsed.role,
     };
   } catch {
-    clearRememberedCredentials();
+    clearRememberedLogin();
     return null;
   }
 }
 
-function writeRememberedCredentials(credentials: RememberedCredentials) {
-  window.localStorage.setItem(REMEMBERED_CREDENTIALS_KEY, JSON.stringify(credentials));
+function writeRememberedLogin(login: RememberedLogin) {
+  window.localStorage.setItem(REMEMBERED_LOGIN_KEY, JSON.stringify(login));
 }
 
-function clearRememberedCredentials() {
-  window.localStorage.removeItem(REMEMBERED_CREDENTIALS_KEY);
+function clearRememberedLogin() {
+  window.localStorage.removeItem(REMEMBERED_LOGIN_KEY);
+}
+
+function clearLegacyRememberedCredentials() {
+  window.localStorage.removeItem(LEGACY_REMEMBERED_CREDENTIALS_KEY);
 }
 
 function PrivacyPolicyDialog() {

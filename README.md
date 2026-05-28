@@ -11,7 +11,7 @@ The product is designed around the common logistics workflow where a shipper cre
 
 - Role-based authentication for **Carrier** and **Shipper** users.
 - The same email account can be used for both roles. The active portal depends on the role selected during login.
-- Carrier **AI Load Matcher** page with load cards, matching scores, route information, sorting/filter controls, and assignment actions.
+- Carrier **AI Load Matcher** page with load cards, route information, objective sorting/filter controls, and assignment actions.
 - Carrier assignment only shows vehicles that are theoretically capable of taking the load, based on vehicle status, schedule conflict, capacity, and trailer dimensions.
 - Carrier **Route Optimizer** page for selecting a truck, adding marketplace/custom stops, and calculating an optimized stop order.
 - Carrier **Fleet Management** page for registering vehicles and trailers, including required-field markers and numeric validation for fuel consumption and trailer capacity/dimensions.
