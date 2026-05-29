@@ -10,7 +10,7 @@ class LoadCreateRequest(BaseModel):
     shipment_code: str | None = Field(default=None, min_length=3, max_length=40)
     origin: str = Field(min_length=1, max_length=240)
     destination: str = Field(min_length=1, max_length=240)
-    weight_kg: float = Field(gt=0, le=100000)
+    weight_kg: float = Field(gt=0, le=24000)
     load_type: str = Field(min_length=1, max_length=80)
     value: float | None = Field(default=None, gt=0)
     length_cm: int | None = Field(default=None, ge=1, le=100000)
