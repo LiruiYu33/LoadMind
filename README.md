@@ -164,13 +164,23 @@ Expected response:
 }
 ```
 
-### 2. Start Redis
+### 2. Start Redis / Celery (optional)
 
-Redis is only required for Celery/background-worker flows. The core local UI can be inspected without starting the worker.
+Redis and the Celery worker power the optional background-worker stack. You only need these when you want to run asynchronous jobs (e.g. offloading heavy model or routing work to a worker).
+
+Start Redis and the worker separately:
 
 ```bash
 cd Backend
 docker compose up -d redis
+docker compose up -d worker
+```
+
+Or start the full stack (API + Redis + worker) together:
+
+```bash
+cd Backend
+docker compose up --build
 ```
 
 ### 3. Start the Frontend
