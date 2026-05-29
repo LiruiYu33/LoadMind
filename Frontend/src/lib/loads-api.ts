@@ -117,6 +117,21 @@ export type RouteOptimizationJob = {
   time_windows?: [number, number][] | null;
 };
 
+export type RouteOptimizationShipmentStep = {
+  id: number;
+  description?: string | null;
+  location: [number, number];
+  service: number;
+  time_windows?: [number, number][] | null;
+};
+
+export type RouteOptimizationShipment = {
+  id: number;
+  amount?: [number] | null;
+  pickup: RouteOptimizationShipmentStep;
+  delivery: RouteOptimizationShipmentStep;
+};
+
 export type RouteOptimizationVehicle = {
   id: number;
   profile: string;
@@ -124,10 +139,12 @@ export type RouteOptimizationVehicle = {
   start: [number, number];
   end: [number, number];
   time_window: [number, number];
+  capacity?: [number] | null;
 };
 
 export type RouteOptimizationInput = {
   jobs: RouteOptimizationJob[];
+  shipments?: RouteOptimizationShipment[];
   vehicles: RouteOptimizationVehicle[];
 };
 
@@ -139,7 +156,7 @@ export type RouteOptimizationResponse = {
       arrival?: number;
     }>;
   }>;
-  unassigned?: Array<{ id?: number }>;
+  unassigned?: Array<{ id?: number; type?: string; description?: string | null }>;
 };
 
 export type LoadRouteMetricsInput = {
