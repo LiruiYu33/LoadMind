@@ -156,7 +156,12 @@ curl http://localhost:8000/health
 Expected response:
 
 ```json
-{"status":"ok","env":"development"}
+{
+  "status": "ok",
+  "env": "development",
+  "instance_id": "...",
+  "started_at": "..."
+}
 ```
 
 ### 2. Start Redis, Optional
@@ -240,9 +245,7 @@ Most API routes require a Supabase access token from the logged-in user.
 
 Assessment support documents are stored in:
 
-- `docs/ROADMAP.md` - product roadmap for Moodle submission preparation.
 - `docs/AI_MODEL.md` - AI/ML model choice, integration, alternatives, and limitations.
-- `docs/DEMO_SCRIPT.md` - live demonstration walkthrough and Q&A preparation.
 - `docs/DEMO_DATA.md` - repeatable Supabase demo seed data instructions.
 - `docs/VALIDATION.md` - validation plan, technical checks, and model validation approach.
 - `docs/RISK_SECURITY.md` - privacy, security, AI/model risk, third-party service risk, and MVP limitations.
@@ -265,11 +268,10 @@ Backend:
 ```bash
 cd Backend
 python3.11 -m pip install -e .
-python3.11 -m py_compile app/main.py app/api/schemas/loads.py app/api/schemas/price_insights.py scripts/validate_pricing_model.py
-python3.11 scripts/validate_pricing_model.py
+python3.11 -m py_compile app/main.py app/api/schemas/loads.py app/api/schemas/price_insights.py
 ```
 
-The pricing validation script shows per-scenario rows by default. Use `--hide-rows` only when you want a shorter metrics-only output.
+The backend also includes a pricing validation script at `scripts/validate_pricing_model.py`. It shows per-scenario rows by default. Use `--hide-rows` only when you want a shorter metrics-only output.
 
 ## GitLab CI/CD
 
@@ -287,7 +289,7 @@ Current backend pipeline behavior:
 
 - uses the `fit2107` runner tag,
 - installs the backend package with `python3.12 -m pip install -e .`,
-- compiles the backend entrypoint and load schema with `python3.12 -m py_compile`,
+- compiles the backend entrypoint and core schemas with `python3.12 -m py_compile`,
 - caches pip downloads under `Backend/.cache/pip/`.
 
 When a Docker runner or a shell runner with Node/npm is available, frontend CI can be added back with jobs such as:
@@ -340,4 +342,4 @@ That means the job is running on a shell runner without Node/npm. Use a Docker r
 - Do not commit `.env`, cache folders, build outputs, or dependency folders.
 - Keep generated files such as `node_modules/`, `dist/`, `.cache/`, `.vite/`, and Python `__pycache__/` out of Git.
 - Keep address fields user-readable. Store or display full street addresses where the UI asks for an address, not raw latitude/longitude values.
-- Keep `Frontend/package-lock.json` tracked, but only commit it when frontend dependencies actually change. Different npm versions can rewrite it mechanically even when `package.json` is unchanged.
+- Note: `Frontend/package-lock.json` is currently ignored in `.gitignore` to avoid excessive diff noise from mechanical npm rewrites.
