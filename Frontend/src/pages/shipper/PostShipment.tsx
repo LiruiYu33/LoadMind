@@ -10,6 +10,11 @@ import { toast } from "@/hooks/use-toast";
 import { DRY_GOODS_CATEGORIES } from "@/lib/dry-goods";
 
 const MAX_SHIPMENT_WEIGHT_KG = 24000;
+// Dimension maximums (cm)
+const MAX_LENGTH_CM = 1600; // 16 m
+const MAX_WIDTH_CM = 280; // 2.5 m
+const MAX_HEIGHT_CM = 400; // 4.0 m
+
 const MIN_DROP_OFF_BUFFER_MINUTES = 60;
 
 export default function PostShipment() {
@@ -114,9 +119,9 @@ export default function PostShipment() {
   const getInvalidCargoNumberField = () => {
     const numericFields = [
       { label: "Weight", value: form.weight, required: true, max: MAX_SHIPMENT_WEIGHT_KG },
-      { label: "Length", value: form.length, required: false },
-      { label: "Width", value: form.width, required: false },
-      { label: "Height", value: form.height, required: false },
+      { label: "Length", value: form.length, required: true, max: MAX_LENGTH_CM },
+      { label: "Width", value: form.width, required: true, max: MAX_WIDTH_CM },
+      { label: "Height", value: form.height, required: true, max: MAX_HEIGHT_CM },
     ];
 
     return numericFields.find((field) => {
@@ -210,9 +215,9 @@ export default function PostShipment() {
         weight_kg: weight,
         load_type: form.category,
         value: acceptedPrice,
-        length_cm: form.length ? Number(form.length) : null,
-        width_cm: form.width ? Number(form.width) : null,
-        height_cm: form.height ? Number(form.height) : null,
+        length_cm: Number(form.length),
+        width_cm: Number(form.width),
+        height_cm: Number(form.height),
         pickup_time: pickupTime.toISOString(),
         dropoff_time: dropoffTime.toISOString(),
         shipment_code: `SH-${Date.now().toString(36).toUpperCase()}`,
@@ -248,9 +253,9 @@ export default function PostShipment() {
         destination: form.destination,
         weight_kg: Number(form.weight) || 0,
         load_type: form.category,
-        length_cm: form.length ? Number(form.length) : null,
-        width_cm: form.width ? Number(form.width) : null,
-        height_cm: form.height ? Number(form.height) : null,
+        length_cm: Number(form.length),
+        width_cm: Number(form.width),
+        height_cm: Number(form.height),
         pickup_time: times.pickupTime.toISOString(),
         dropoff_time: times.dropoffTime.toISOString(),
       });
@@ -331,35 +336,41 @@ export default function PostShipment() {
               />
             </Field>
             <div className="grid grid-cols-3 gap-2">
-              <Field label="L (cm)">
+              <Field label="L (cm)" required>
                 <input
                   type="number"
+                  required
                   min="1"
+                  max={MAX_LENGTH_CM}
                   step="1"
                   value={form.length}
-                  onChange={setPositiveIntegerNumber("length")}
+                  onChange={setPositiveIntegerNumber("length", MAX_LENGTH_CM)}
                   onKeyDown={preventIntegerInput}
                   className="loadmind-input"
                 />
               </Field>
-              <Field label="W (cm)">
+              <Field label="W (cm)" required>
                 <input
                   type="number"
+                  required
                   min="1"
+                  max={MAX_WIDTH_CM}
                   step="1"
                   value={form.width}
-                  onChange={setPositiveIntegerNumber("width")}
+                  onChange={setPositiveIntegerNumber("width", MAX_WIDTH_CM)}
                   onKeyDown={preventIntegerInput}
                   className="loadmind-input"
                 />
               </Field>
-              <Field label="H (cm)">
+              <Field label="H (cm)" required>
                 <input
                   type="number"
+                  required
                   min="1"
+                  max={MAX_HEIGHT_CM}
                   step="1"
                   value={form.height}
-                  onChange={setPositiveIntegerNumber("height")}
+                  onChange={setPositiveIntegerNumber("height", MAX_HEIGHT_CM)}
                   onKeyDown={preventIntegerInput}
                   className="loadmind-input"
                 />
