@@ -1,11 +1,22 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
 import { NavLink } from "@/components/NavLink";
 import {
-  Truck, Brain, Wrench, BarChart3, Send, History, LogOut, ChevronRight, Route, ChevronDown,
+  Truck, Brain, Wrench, BarChart3, Send, History, LogOut, ChevronRight, Route, ChevronDown, KeyRound, Loader2,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
+import { PasswordPolicyChecklist } from "@/components/PasswordPolicyChecklist";
+import { getPasswordPolicyChecks, getPasswordPolicyError, PASSWORD_POLICY_TEXT } from "@/lib/password-policy";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +37,7 @@ export function PortalShell({
   const nav = useNavigate();
   const location = useLocation();
   const accountMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
 
   const carrierNav = [
     { to: "/carrier",          label: "AI Load Matcher", icon: Brain, end: true },
@@ -183,6 +195,16 @@ export function PortalShell({
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    setPasswordDialogOpen(true);
+                  }}
+                  className="cursor-pointer"
+                >
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  Change password
+                </DropdownMenuItem>
+                <DropdownMenuItem
                   onClick={handleSignOut}
                   className="cursor-pointer text-destructive focus:text-destructive"
                 >
@@ -191,6 +213,10 @@ export function PortalShell({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <ChangePasswordDialog
+              open={passwordDialogOpen}
+              onOpenChange={setPasswordDialogOpen}
+            />
           </div>
         </header>
 
@@ -218,5 +244,142 @@ export function PortalShell({
         </main>
       </div>
     </div>
+  );
+}
+
+function ChangePasswordDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const passwordChecks = getPasswordPolicyChecks(newPassword);
+
+  const reset = () => {
+    setNewPassword("");
+    setConfirmPassword("");
+    setSubmitting(false);
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    const passwordPolicyError = getPasswordPolicyError(newPassword);
+    if (passwordPolicyError) {
+      toast({
+        title: "Password is too weak",
+        description: PASSWORD_POLICY_TEXT,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast({
+        title: "Passwords do not match",
+        description: "Please enter the same new password twice.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSubmitting(true);
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    setSubmitting(false);
+
+    if (error) {
+      toast({
+        title: "Could not update password",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Password updated",
+      description: "Your LoadMind password has been changed.",
+    });
+    reset();
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        onOpenChange(nextOpen);
+        if (!nextOpen) reset();
+      }}
+    >
+      <DialogContent className="surface-2 max-w-md border-0">
+        <DialogHeader>
+          <div className="label-eyebrow mb-2">ACCOUNT SECURITY</div>
+          <DialogTitle className="font-display text-2xl font-bold">
+            Change password
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground">
+            {PASSWORD_POLICY_TEXT}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="mt-2 space-y-4">
+          <label className="block">
+            <div className="label-eyebrow mb-2">NEW PASSWORD</div>
+            <input
+              type="password"
+              required
+              minLength={10}
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              autoComplete="new-password"
+              className="h-11 w-full rounded-md surface-3 px-3 text-sm outline-none ring-1 ring-transparent transition focus:ring-primary"
+            />
+            <PasswordPolicyChecklist
+              hasMinLength={passwordChecks.hasMinLength}
+              hasSpecialCharacter={passwordChecks.hasSpecialCharacter}
+            />
+          </label>
+          <label className="block">
+            <div className="label-eyebrow mb-2">CONFIRM PASSWORD</div>
+            <input
+              type="password"
+              required
+              minLength={10}
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              autoComplete="new-password"
+              className="h-11 w-full rounded-md surface-3 px-3 text-sm outline-none ring-1 ring-transparent transition focus:ring-primary"
+            />
+          </label>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              className="h-10 rounded-md surface-3 px-4 text-sm font-semibold hover:lift-shadow"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-primary-gradient h-10 rounded-md px-4 text-sm font-semibold disabled:opacity-60"
+            >
+              {submitting ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Updating
+                </span>
+              ) : (
+                "Update password"
+              )}
+            </button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
