@@ -182,7 +182,7 @@ const Auth = () => {
           </h1>
           <p className="text-primary-glow text-base leading-relaxed">
             AI load matching, live fleet telemetry, and a transparent shipper marketplace — built for carriers and shippers
-            from Perth to Brisbane.
+            in Victoria.
           </p>
         </div>
         <div className="relative z-10 grid grid-cols-3 gap-6 max-w-md">
