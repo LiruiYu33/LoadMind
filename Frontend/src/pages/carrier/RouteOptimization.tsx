@@ -511,37 +511,12 @@ export default function RouteOptimization() {
       const finalOrdered = endResolved ? [...orderedStops, endResolved] : orderedStops;
       const baselineStops = endResolved ? [...inputOrderedStops, endResolved] : inputOrderedStops;
 
-      const baselineKm = computeSequenceKm(start, baselineStops);
-
-      let roadPath: [number, number][] = [
-        [start.lat, start.lng],
-        ...finalOrdered.map((p) => [p.lat, p.lng] as [number, number]),
-      ];
-      let roadTotalKm = baselineKm;
+      const [{ roadPath, distanceKm: roadTotalKm }, baselineMetrics] = await Promise.all([
+        fetchRoadRouteMetrics(start, finalOrdered),
+        fetchRoadRouteMetrics(start, baselineStops),
+      ]);
+      const baselineKm = baselineMetrics.distanceKm;
       const roadLegsKm = computeLegsKm(start, finalOrdered);
-      try {
-        const coords = [start, ...finalOrdered]
-          .map((p) => `${p.lng},${p.lat}`)
-          .join(";");
-        const res = await fetch(
-          `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false&annotations=false`,
-        );
-        if (res.ok) {
-          const json = await res.json();
-          const route = json.routes?.[0];
-          if (route?.geometry?.coordinates) {
-            roadPath = route.geometry.coordinates.map(
-              ([lng, lat]: [number, number]) => [lat, lng] as [number, number],
-            );
-            roadTotalKm = route.distance / 1000;
-          }
-        }
-      } catch {
-        toast({
-          title: "Using straight-line estimate",
-          description: "Road routing service unreachable.",
-        });
-      }
 
       setResult({
         ordered: finalOrdered.map((stop, index) => ({
@@ -1006,6 +981,52 @@ function computeLegsKm(start: LatLng, stops: Array<{ lat: number; lng: number }>
 
 function computeSequenceKm(start: LatLng, stops: Array<{ lat: number; lng: number }>): number {
   return computeLegsKm(start, stops).reduce((total, legKm) => total + legKm, 0);
+}
+
+async function fetchRoadRouteMetrics(
+  start: LatLng,
+  stops: Array<{ lat: number; lng: number }>,
+): Promise<{ roadPath: [number, number][]; distanceKm: number }> {
+  const fallbackPath: [number, number][] = [
+    [start.lat, start.lng],
+    ...stops.map((stop) => [stop.lat, stop.lng] as [number, number]),
+  ];
+  const fallbackDistanceKm = computeSequenceKm(start, stops);
+
+  if (stops.length === 0) {
+    return {
+      roadPath: fallbackPath,
+      distanceKm: 0,
+    };
+  }
+
+  try {
+    const coords = [start, ...stops]
+      .map((p) => `${p.lng},${p.lat}`)
+      .join(";");
+    const res = await fetch(
+      `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false&annotations=false`,
+    );
+    if (res.ok) {
+      const json = await res.json();
+      const route = json.routes?.[0];
+      if (route?.geometry?.coordinates) {
+        return {
+          roadPath: route.geometry.coordinates.map(
+            ([lng, lat]: [number, number]) => [lat, lng] as [number, number],
+          ),
+          distanceKm: route.distance / 1000,
+        };
+      }
+    }
+  } catch {
+    // Fall back below.
+  }
+
+  return {
+    roadPath: fallbackPath,
+    distanceKm: fallbackDistanceKm,
+  };
 }
 
 function toDateTimeLocalValue(date: Date): string {
