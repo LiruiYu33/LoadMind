@@ -6,7 +6,11 @@ import { LocationPickerDialog } from "@/components/LocationPickerDialog";
 import { geocode, type LatLng } from "@/lib/geocode";
 import { geocodeLocation } from "@/lib/geo";
 import { haversineKm } from "@/lib/optimizeRoute";
-import { optimizeRoute } from "@/lib/loads-api";
+import {
+  optimizeRoute,
+  type RouteOptimizationJob,
+  type RouteOptimizationShipment,
+} from "@/lib/loads-api";
 import {
   Truck,
   Plus,
@@ -66,9 +70,10 @@ type ResolvedStop = {
   lat: number;
   lng: number;
   source: Stop["source"];
-  stopType: "job" | "end";
+  stopType: "job" | "pickup" | "delivery" | "end";
   time?: string;
   serviceMinutes?: number;
+  loadId?: string;
 };
 
 type OrsOptimizationResponse = {
@@ -282,35 +287,165 @@ export default function RouteOptimization() {
 
       const start: LatLng = { lat: truckPoint.lat, lng: truckPoint.lng };
       const planningBase = getPlanningBaseTime([...resolvedStops, ...(endResolved ? [endResolved] : [])]);
-      const jobs = resolvedStops.map((stop, index) => {
-        const serviceSeconds = (stop.serviceMinutes ?? 0) * 60;
+      const jobs: RouteOptimizationJob[] = [];
+      const shipments: RouteOptimizationShipment[] = [];
+      const taskById = new Map<number, ResolvedStop>();
+      const inputOrderedStops: ResolvedStop[] = [];
+      const handledLoadIds = new Set<string>();
+
+      let nextJobId = 1;
+      let nextShipmentId = 1;
+
+      for (const stop of stops) {
+        if (stop.source === "marketplace") {
+          if (!stop.loadId || handledLoadIds.has(stop.loadId)) continue;
+          const load = loads.find((entry) => entry.id === stop.loadId);
+          const pairedStops = stops.filter((entry) => entry.loadId === stop.loadId && entry.source === "marketplace");
+          const pickupStop = pairedStops[0];
+          const deliveryStop = pairedStops[1];
+
+          if (!load || !pickupStop || !deliveryStop) {
+            toast({
+              title: "Could not prepare marketplace load",
+              description: "One of the selected loads is missing a pickup or delivery stop.",
+              variant: "destructive",
+            });
+            return;
+          }
+
+          handledLoadIds.add(stop.loadId);
+
+          const pickupPoint = await geocode(pickupStop.label);
+          const deliveryPoint = await geocode(deliveryStop.label);
+          if (!pickupPoint || !deliveryPoint) {
+            toast({
+              title: "Couldn't locate marketplace load",
+              description: `Try a more specific address for ${load.origin} → ${load.destination}.`,
+            });
+            return;
+          }
+
+          const pickupDeadlineSeconds = pickupStop.time ? toOrsDeadlineSeconds(pickupStop.time, planningBase) : null;
+          const deliveryDeadlineSeconds = deliveryStop.time ? toOrsDeadlineSeconds(deliveryStop.time, planningBase) : null;
+          const pickupTimeWindows = buildTimeWindows({
+            deadlineSeconds: pickupDeadlineSeconds,
+            serviceSeconds: 0,
+            deadlineMode: "latest-arrival",
+          });
+          const deliveryTimeWindows = buildTimeWindows({
+            deadlineSeconds: deliveryDeadlineSeconds,
+            serviceSeconds: 0,
+            deadlineMode: "latest-arrival",
+          });
+
+          if ((pickupStop.time && !pickupTimeWindows) || (deliveryStop.time && !deliveryTimeWindows)) {
+            toast({
+              title: "Invalid marketplace deadlines",
+              description: `${load.origin} → ${load.destination} needs a later pickup or delivery deadline.`,
+            });
+            return;
+          }
+
+          const shipmentId = nextShipmentId;
+          const pickupId = 100000 + (shipmentId * 2) - 1;
+          const deliveryId = pickupId + 1;
+          nextShipmentId += 1;
+
+          shipments.push({
+            id: shipmentId,
+            amount: [1] as [number],
+            pickup: {
+              id: pickupId,
+              description: load.origin,
+              location: [pickupPoint.lng, pickupPoint.lat] as [number, number],
+              service: 0,
+              ...(pickupTimeWindows ? { time_windows: pickupTimeWindows } : {}),
+            },
+            delivery: {
+              id: deliveryId,
+              description: load.destination,
+              location: [deliveryPoint.lng, deliveryPoint.lat] as [number, number],
+              service: 0,
+              ...(deliveryTimeWindows ? { time_windows: deliveryTimeWindows } : {}),
+            },
+          });
+
+          const pickupResolved: ResolvedStop = {
+            label: load.origin,
+            lat: pickupPoint.lat,
+            lng: pickupPoint.lng,
+            source: "marketplace",
+            stopType: "pickup",
+            time: pickupStop.time,
+            serviceMinutes: 0,
+            loadId: load.id,
+          };
+          const deliveryResolved: ResolvedStop = {
+            label: load.destination,
+            lat: deliveryPoint.lat,
+            lng: deliveryPoint.lng,
+            source: "marketplace",
+            stopType: "delivery",
+            time: deliveryStop.time,
+            serviceMinutes: 0,
+            loadId: load.id,
+          };
+
+          taskById.set(pickupId, pickupResolved);
+          taskById.set(deliveryId, deliveryResolved);
+          inputOrderedStops.push(pickupResolved, deliveryResolved);
+          continue;
+        }
+
+        const pt = await geocode(stop.label);
+        if (!pt) {
+          toast({
+            title: "Couldn't locate stop",
+            description: `Try a more specific name for "${stop.label}".`,
+          });
+          return;
+        }
+
+        const serviceMinutes = stop.source === "custom" ? DEFAULT_CUSTOM_SERVICE_MINUTES : 0;
+        const serviceSeconds = serviceMinutes * 60;
         const deadlineSeconds = stop.time ? toOrsDeadlineSeconds(stop.time, planningBase) : null;
         const timeWindows = buildTimeWindows({
           deadlineSeconds,
           serviceSeconds,
-          deadlineMode: stop.source === "custom" ? "service-complete" : "latest-arrival",
+          deadlineMode: "latest-arrival",
         });
 
         if (stop.time && !timeWindows) {
           toast({
             title: "Invalid stop deadline",
-            description: `${stop.label} needs more time. The deadline must be after its service duration and greater than zero.`,
+            description: `${stop.label} needs more time. The deadline must be greater than zero.`,
           });
-          return null;
+          return;
         }
 
-        return {
-          id: index + 1,
+        const jobId = nextJobId;
+        nextJobId += 1;
+
+        jobs.push({
+          id: jobId,
           description: stop.label,
-          location: [stop.lng, stop.lat] as [number, number],
+          location: [pt.lng, pt.lat] as [number, number],
           service: serviceSeconds,
           ...(timeWindows ? { time_windows: timeWindows } : {}),
+        });
+
+        const resolvedJob: ResolvedStop = {
+          label: stop.label,
+          lat: pt.lat,
+          lng: pt.lng,
+          source: stop.source,
+          stopType: "job",
+          time: stop.time,
+          serviceMinutes,
         };
-      });
-
-      if (jobs.some((job) => !job)) return;
-
-      const compactJobs = jobs.filter(Boolean) as NonNullable<(typeof jobs)[number]>[];
+        taskById.set(jobId, resolvedJob);
+        inputOrderedStops.push(resolvedJob);
+      }
 
       const vehicleStart = [start.lng, start.lat] as [number, number];
       const vehicleEnd = endResolved ? [endResolved.lng, endResolved.lat] as [number, number] : vehicleStart;
@@ -332,7 +467,8 @@ export default function RouteOptimization() {
       }
 
       const body = {
-        jobs: compactJobs,
+        jobs,
+        shipments: shipments.length > 0 ? shipments : undefined,
         vehicles: [
           {
             id: 1,
@@ -341,21 +477,22 @@ export default function RouteOptimization() {
             start: vehicleStart,
             end: vehicleEnd,
             time_window: vehicleWindow,
+            capacity: [1] as [number],
           },
         ],
       };
 
       const data = await optimizeRoute(body);
       const route = data.routes?.[0];
-      const orderedJobIds = route?.steps
-        ?.filter((step) => step.type === "job" && typeof step.id === "number")
+      const orderedStepIds = route?.steps
+        ?.filter((step) => (step.type === "job" || step.type === "pickup" || step.type === "delivery") && typeof step.id === "number")
         .map((step) => step.id as number) ?? [];
 
-      const assignedStops = orderedJobIds
-        .map((jobId) => resolvedStops[jobId - 1])
-        .filter(Boolean);
+      const orderedStops = orderedStepIds
+        .map((taskId) => taskById.get(taskId))
+        .filter(Boolean) as ResolvedStop[];
 
-      if (!assignedStops.length && resolvedStops.length > 0) {
+      if (!orderedStops.length && inputOrderedStops.length > 0) {
         toast({
           title: "Route cannot be fulfilled in time",
           description: "The optimization service returned no feasible job order.",
@@ -371,10 +508,10 @@ export default function RouteOptimization() {
         return;
       }
 
-      const finalOrdered = endResolved ? [...assignedStops, endResolved] : assignedStops;
-      const inputOrderedStops = endResolved ? [...resolvedStops, endResolved] : resolvedStops;
+      const finalOrdered = endResolved ? [...orderedStops, endResolved] : orderedStops;
+      const baselineStops = endResolved ? [...inputOrderedStops, endResolved] : inputOrderedStops;
 
-      const baselineKm = computeSequenceKm(start, inputOrderedStops);
+      const baselineKm = computeSequenceKm(start, baselineStops);
 
       let roadPath: [number, number][] = [
         [start.lat, start.lng],
@@ -409,7 +546,7 @@ export default function RouteOptimization() {
       setResult({
         ordered: finalOrdered.map((stop, index) => ({
           ...stop,
-          stopKey: index < assignedStops.length ? String(index + 1) : "end",
+          stopKey: index < orderedStops.length ? String(index + 1) : "end",
         })),
         legsKm: roadLegsKm,
         totalKm: roadTotalKm,
