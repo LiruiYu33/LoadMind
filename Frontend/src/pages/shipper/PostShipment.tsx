@@ -9,6 +9,9 @@ import { Package, MapPin, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { DRY_GOODS_CATEGORIES } from "@/lib/dry-goods";
 
+const MAX_SHIPMENT_WEIGHT_KG = 24000;
+const MIN_DROP_OFF_BUFFER_MINUTES = 60;
+
 export default function PostShipment() {
   const { user } = useAuth();
   const nav = useNavigate();
@@ -59,7 +62,25 @@ export default function PostShipment() {
     setForm((f) => ({ ...f, [k]: value }));
   };
 
-  const setPositiveIntegerNumber = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
+  const setPickupTime = (value: string) => {
+    setForm((current) => {
+      const next = { ...current, pickupTime: value };
+      if (!value) return next;
+
+      const pickupTime = new Date(value);
+      if (Number.isNaN(pickupTime.getTime())) return next;
+
+      const earliestDropoff = getEarliestDropoffTime(pickupTime, actualDurationHours);
+      const currentDropoff = new Date(current.dropoffTime);
+      if (!current.dropoffTime || Number.isNaN(currentDropoff.getTime()) || currentDropoff < earliestDropoff) {
+        next.dropoffTime = toDateTimeLocalValue(earliestDropoff);
+      }
+
+      return next;
+    });
+  };
+
+  const setPositiveIntegerNumber = (k: keyof typeof form, max?: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     if (value === "") {
       setValue(k, value);
@@ -68,6 +89,7 @@ export default function PostShipment() {
 
     const number = Number(value);
     if (!/^\d+$/.test(value) || !Number.isFinite(number) || number <= 0) return;
+    if (max != null && number > max) return;
     setValue(k, value);
   };
 
@@ -91,7 +113,7 @@ export default function PostShipment() {
 
   const getInvalidCargoNumberField = () => {
     const numericFields = [
-      { label: "Weight", value: form.weight, required: true },
+      { label: "Weight", value: form.weight, required: true, max: MAX_SHIPMENT_WEIGHT_KG },
       { label: "Length", value: form.length, required: false },
       { label: "Width", value: form.width, required: false },
       { label: "Height", value: form.height, required: false },
@@ -100,14 +122,16 @@ export default function PostShipment() {
     return numericFields.find((field) => {
       if (!field.value) return field.required;
       const number = Number(field.value);
-      return !Number.isFinite(number) || number <= 0;
+      return !Number.isFinite(number) || number <= 0 || (field.max != null && number > field.max);
     });
   };
 
-  const showCargoNumberError = (field: { label: string; required: boolean }) => {
+  const showCargoNumberError = (field: { label: string; required: boolean; max?: number }) => {
     toast({
       title: "Invalid cargo dimensions",
-      description: `${field.label} must be a number greater than zero${field.required ? "" : " or left blank"}.`,
+      description: field.max != null
+        ? `${field.label} must be between 1 and ${field.max.toLocaleString("en-AU")}.`
+        : `${field.label} must be a number greater than zero${field.required ? "" : " or left blank"}.`,
       variant: "destructive",
     });
   };
@@ -122,6 +146,8 @@ export default function PostShipment() {
   const getValidatedTimes = () => {
     const pickupTime = new Date(form.pickupTime);
     const dropoffTime = new Date(form.dropoffTime);
+    const now = new Date();
+    now.setSeconds(0, 0);
 
     if (
       Number.isNaN(pickupTime.getTime()) ||
@@ -131,8 +157,23 @@ export default function PostShipment() {
       return null;
     }
 
+    if (pickupTime < now) {
+      toast({ title: "Pickup time is in the past", description: "Please choose a current or future pickup time.", variant: "destructive" });
+      return null;
+    }
+
     if (dropoffTime <= pickupTime) {
       toast({ title: "Time sequence invalid", description: "Dropoff time must be after pickup time.", variant: "destructive" });
+      return null;
+    }
+
+    const earliestDropoff = getEarliestDropoffTime(pickupTime, actualDurationHours);
+    if (dropoffTime < earliestDropoff) {
+      toast({
+        title: "Dropoff time is too early",
+        description: `Earliest dropoff is ${formatDateTimeForMessage(earliestDropoff)} based on the pickup time${actualDurationHours ? " and estimated route duration" : ""}.`,
+        variant: "destructive",
+      });
       return null;
     }
 
@@ -244,6 +285,11 @@ export default function PostShipment() {
 
 
   const suggestedPriceLabel = suggestedPrice == null ? "No price yet" : formatAudPrice(suggestedPrice);
+  const pickupMinValue = toDateTimeLocalValue(new Date());
+  const dropoffMinDate = form.pickupTime
+    ? getEarliestDropoffTime(new Date(form.pickupTime), actualDurationHours)
+    : null;
+  const dropoffMinValue = dropoffMinDate ? toDateTimeLocalValue(dropoffMinDate) : pickupMinValue;
 
   return (
     <div className="p-6 lg:p-10">
@@ -275,9 +321,10 @@ export default function PostShipment() {
                 required
                 type="number"
                 min="1"
+                max={MAX_SHIPMENT_WEIGHT_KG}
                 step="1"
                 value={form.weight}
-                onChange={setPositiveIntegerNumber("weight")}
+                onChange={setPositiveIntegerNumber("weight", MAX_SHIPMENT_WEIGHT_KG)}
                 onKeyDown={preventIntegerInput}
                 placeholder="24000"
                 className="loadmind-input"
@@ -380,10 +427,15 @@ export default function PostShipment() {
               </div>
             </Field>
             <Field label="Pickup Time" required>
-              <input required type="datetime-local" value={form.pickupTime} onChange={set("pickupTime")} className="loadmind-input" />
+              <input required type="datetime-local" value={form.pickupTime} onChange={(event) => setPickupTime(event.target.value)} min={pickupMinValue} className="loadmind-input" />
             </Field>
             <Field label="Dropoff Time" required>
-              <input required type="datetime-local" value={form.dropoffTime} onChange={set("dropoffTime")} min={form.pickupTime || undefined} className="loadmind-input" />
+              <input required type="datetime-local" value={form.dropoffTime} onChange={set("dropoffTime")} min={dropoffMinValue || undefined} className="loadmind-input" />
+              {form.pickupTime && (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Earliest dropoff: {dropoffMinDate ? formatDateTimeForMessage(dropoffMinDate) : "set pickup time first"}.
+                </p>
+              )}
             </Field>
           </div>
 
@@ -560,4 +612,37 @@ function Field({
       {children}
     </div>
   );
+}
+
+function getEarliestDropoffTime(pickupTime: Date, actualDurationHours: number | null) {
+  const minimumMinutes = Math.max(
+    MIN_DROP_OFF_BUFFER_MINUTES,
+    actualDurationHours && Number.isFinite(actualDurationHours) ? Math.ceil(actualDurationHours * 60) : 0,
+  );
+
+  return new Date(pickupTime.getTime() + minimumMinutes * 60 * 1000);
+}
+
+function toDateTimeLocalValue(date: Date) {
+  const rounded = new Date(date);
+  rounded.setSeconds(0, 0);
+  if (rounded.getTime() < date.getTime()) {
+    rounded.setMinutes(rounded.getMinutes() + 1);
+  }
+
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return [
+    rounded.getFullYear(),
+    pad(rounded.getMonth() + 1),
+    pad(rounded.getDate()),
+  ].join("-") + `T${pad(rounded.getHours())}:${pad(rounded.getMinutes())}`;
+}
+
+function formatDateTimeForMessage(date: Date) {
+  return date.toLocaleString("en-AU", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }

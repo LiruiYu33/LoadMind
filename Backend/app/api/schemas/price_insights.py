@@ -9,7 +9,7 @@ class PriceSuggestionRequest(BaseModel):
     cargo: str = Field(default="", max_length=500)
     origin: str = Field(min_length=1, max_length=240)
     destination: str = Field(min_length=1, max_length=240)
-    weight_kg: float = Field(gt=0, le=100000)
+    weight_kg: float = Field(gt=0, le=24000)
     load_type: str = Field(min_length=1, max_length=80)
     length_cm: int | None = Field(default=None, ge=1, le=100000)
     width_cm: int | None = Field(default=None, ge=1, le=100000)
