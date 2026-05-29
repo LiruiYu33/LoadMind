@@ -154,6 +154,10 @@ export default function RouteOptimization() {
   }, []);
 
   const selectedTruck = vehicles.find((v) => v.id === selectedTruckId) ?? null;
+  const selectedLoad = loads.find((load) => load.id === loadPickerId) ?? null;
+  const selectedLoadAlreadyAdded = selectedLoad
+    ? stops.some((stop) => stop.source === "marketplace" && stop.loadId === selectedLoad.id)
+    : false;
 
   const addCustomStop = () => {
     const name = customInput.trim();
@@ -178,6 +182,14 @@ export default function RouteOptimization() {
   const addLoadStops = () => {
     const load = loads.find((l) => l.id === loadPickerId);
     if (!load) return;
+    if (stops.some((stop) => stop.source === "marketplace" && stop.loadId === load.id)) {
+      toast({
+        title: "Load already added",
+        description: "You can only add each marketplace load once.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (stops.length + 2 > MAX_STOPS) {
       toast({
         title: "Not enough room",
@@ -360,11 +372,9 @@ export default function RouteOptimization() {
       }
 
       const finalOrdered = endResolved ? [...assignedStops, endResolved] : assignedStops;
+      const inputOrderedStops = endResolved ? [...resolvedStops, endResolved] : resolvedStops;
 
-      const baselineKm = assignedStops.reduce((total, stop, index) => {
-        const previous = index === 0 ? start : resolvedStops[index - 1];
-        return total + haversineKm(previous, stop);
-      }, 0) + (endResolved && assignedStops.length > 0 ? haversineKm(assignedStops[assignedStops.length - 1], endResolved) : 0);
+      const baselineKm = computeSequenceKm(start, inputOrderedStops);
 
       let roadPath: [number, number][] = [
         [start.lat, start.lng],
@@ -521,14 +531,14 @@ export default function RouteOptimization() {
                 >
                   <option value="">Select a load…</option>
                   {loads.map((l) => (
-                    <option key={l.id} value={l.id}>
+                    <option key={l.id} value={l.id} disabled={stops.some((stop) => stop.source === "marketplace" && stop.loadId === l.id)}>
                       {l.origin} → {l.destination} · {l.load_type}
                     </option>
                   ))}
                 </select>
                 <button
                   onClick={addLoadStops}
-                  disabled={!loadPickerId || stops.length + 2 > MAX_STOPS}
+                  disabled={!loadPickerId || stops.length + 2 > MAX_STOPS || selectedLoadAlreadyAdded}
                   className="h-9 w-[68px] shrink-0 rounded-md btn-action text-sm font-semibold flex items-center justify-center gap-1 disabled:opacity-40"
                 >
                   <Plus className="h-3.5 w-3.5" /> Add
@@ -855,6 +865,10 @@ function computeLegsKm(start: LatLng, stops: Array<{ lat: number; lng: number }>
   }
 
   return legs;
+}
+
+function computeSequenceKm(start: LatLng, stops: Array<{ lat: number; lng: number }>): number {
+  return computeLegsKm(start, stops).reduce((total, legKm) => total + legKm, 0);
 }
 
 function toDateTimeLocalValue(date: Date): string {
