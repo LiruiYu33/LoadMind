@@ -13,9 +13,13 @@ class LoadCreateRequest(BaseModel):
     weight_kg: float = Field(gt=0, le=24000)
     load_type: str = Field(min_length=1, max_length=80)
     value: float | None = Field(default=None, gt=0)
-    length_cm: int | None = Field(default=None, ge=1, le=100000)
-    width_cm: int | None = Field(default=None, ge=1, le=100000)
-    height_cm: int | None = Field(default=None, ge=1, le=100000)
+    # Dimensions are required (cm). Set realistic upper bounds for validation.
+    # Length: typical heavy vehicle max ~16 m (1600 cm)
+    # Width: typical maximum ~2.5 m (250 cm)
+    # Height: typical maximum ~4.0 m (400 cm)
+    length_cm: int = Field(..., ge=1, le=1600)
+    width_cm: int = Field(..., ge=1, le=250)
+    height_cm: int = Field(..., ge=1, le=400)
     pickup_time: datetime
     dropoff_time: datetime
 
@@ -45,9 +49,9 @@ class LoadResponse(BaseModel):
     ai_reasoning: str | None = None
     pickup_time: datetime
     dropoff_time: datetime
-    length_cm: int | None = None
-    width_cm: int | None = None
-    height_cm: int | None = None
+    length_cm: int
+    width_cm: int
+    height_cm: int
     assigned_vehicle_id: str | None = None
     assigned_vehicle_unit: str | None = None
     assigned_carrier_id: str | None = None
