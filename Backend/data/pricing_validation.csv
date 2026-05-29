@@ -1,0 +1,9 @@
+scenario,origin,destination,weight_kg,weight_lbs,typical_distance_miles,actual_duration_hours,reference_price_aud,reference_type
+Clayton to Melbourne CBD,"Clayton, Victoria, 3168, Australia","Melbourne, Victoria, 3000, Australia",12000,26455,19,1.1,330,synthetic_demo_benchmark
+West Melbourne to Eumemmerring,"391-395 Dynon Road, West Melbourne, Victoria, 3003, Australia","9A Butler Street, Eumemmerring, Victoria, 3177, Australia",18000,39683,35,1.6,340,synthetic_demo_benchmark
+Melbourne to Geelong,"Melbourne, Victoria, 3000, Australia","Geelong, Victoria, 3220, Australia",22000,48502,48,1.9,315,synthetic_demo_benchmark
+Melbourne to Ballarat,"Melbourne, Victoria, 3000, Australia","Ballarat, Victoria, 3350, Australia",16000,35274,73,2.0,350,synthetic_demo_benchmark
+Melbourne to Bendigo,"Melbourne, Victoria, 3000, Australia","Bendigo, Victoria, 3550, Australia",20000,44092,96,2.4,330,synthetic_demo_benchmark
+Melbourne to Sydney,"Melbourne, Victoria, 3000, Australia","Sydney, New South Wales, 2000, Australia",24000,52911,544,10.3,1900,synthetic_demo_benchmark
+Melbourne to Adelaide,"Melbourne, Victoria, 3000, Australia","Adelaide, South Australia, 5000, Australia",22000,48502,452,8.2,1120,synthetic_demo_benchmark
+Melbourne to Brisbane,"Melbourne, Victoria, 3000, Australia","Brisbane, Queensland, 4000, Australia",18000,39683,1050,30.0,3450,synthetic_demo_benchmark
