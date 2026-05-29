@@ -164,7 +164,7 @@ Expected response:
 }
 ```
 
-### 2. Start Redis, Optional
+### 2. Start Redis
 
 Redis is only required for Celery/background-worker flows. The core local UI can be inspected without starting the worker.
 
