@@ -109,8 +109,48 @@ export type PriceSuggestion = {
   distance_miles?: number | null;
 };
 
+export type RouteOptimizationJob = {
+  id: number;
+  description?: string | null;
+  location: [number, number];
+  service: number;
+  time_windows?: [number, number][] | null;
+};
+
+export type RouteOptimizationVehicle = {
+  id: number;
+  profile: string;
+  description?: string | null;
+  start: [number, number];
+  end: [number, number];
+  time_window: [number, number];
+};
+
+export type RouteOptimizationInput = {
+  jobs: RouteOptimizationJob[];
+  vehicles: RouteOptimizationVehicle[];
+};
+
+export type RouteOptimizationResponse = {
+  routes?: Array<{
+    steps?: Array<{
+      type: string;
+      id?: number;
+      arrival?: number;
+    }>;
+  }>;
+  unassigned?: Array<{ id?: number }>;
+};
+
 export async function suggestPrice(payload: PriceSuggestionInput): Promise<PriceSuggestion> {
   return apiRequest<PriceSuggestion>(`/api/v1/price-insights/suggest`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function optimizeRoute(payload: RouteOptimizationInput): Promise<RouteOptimizationResponse> {
+  return apiRequest<RouteOptimizationResponse>(`/api/v1/route-optimization/optimize`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
