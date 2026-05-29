@@ -269,13 +269,23 @@ export default function RouteOptimization() {
       }
 
       const start: LatLng = { lat: truckPoint.lat, lng: truckPoint.lng };
-      const planningBase = getPlanningBaseTime(resolvedStops);
+      const planningBase = getPlanningBaseTime([...resolvedStops, ...(endResolved ? [endResolved] : [])]);
       const jobs = resolvedStops.map((stop, index) => {
-        const latestArrival = stop.time ? toOrsSeconds(stop.time, planningBase) : DEFAULT_TRUCK_END_HOURS * 3600;
         const serviceSeconds = (stop.serviceMinutes ?? 0) * 60;
-        const timeWindows: [number, number][] | undefined = stop.time
-          ? [[0, latestArrival]]
-          : undefined;
+        const deadlineSeconds = stop.time ? toOrsDeadlineSeconds(stop.time, planningBase) : null;
+        const timeWindows = buildTimeWindows({
+          deadlineSeconds,
+          serviceSeconds,
+          deadlineMode: stop.source === "custom" ? "service-complete" : "latest-arrival",
+        });
+
+        if (stop.time && !timeWindows) {
+          toast({
+            title: "Invalid stop deadline",
+            description: `${stop.label} needs more time. The deadline must be after its service duration and greater than zero.`,
+          });
+          return null;
+        }
 
         return {
           id: index + 1,
@@ -286,17 +296,31 @@ export default function RouteOptimization() {
         };
       });
 
+      if (jobs.some((job) => !job)) return;
+
+      const compactJobs = jobs.filter(Boolean) as NonNullable<(typeof jobs)[number]>[];
+
       const vehicleStart = [start.lng, start.lat] as [number, number];
       const vehicleEnd = endResolved ? [endResolved.lng, endResolved.lat] as [number, number] : vehicleStart;
-      const vehicleWindow: [number, number] = [
-        0,
-        endResolved?.time
-          ? toOrsSeconds(endResolved.time, planningBase)
-          : DEFAULT_TRUCK_END_HOURS * 3600,
-      ];
+      const vehicleDeadlineSeconds = endResolved?.time
+        ? toOrsDeadlineSeconds(endResolved.time, planningBase)
+        : DEFAULT_TRUCK_END_HOURS * 3600;
+      const vehicleWindow = buildSingleTimeWindow({
+        deadlineSeconds: vehicleDeadlineSeconds,
+        serviceSeconds: 0,
+        deadlineMode: "latest-arrival",
+      });
+
+      if (!vehicleWindow) {
+        toast({
+          title: "Invalid end stop deadline",
+          description: "The end stop deadline must be greater than zero.",
+        });
+        return;
+      }
 
       const body = {
-        jobs,
+        jobs: compactJobs,
         vehicles: [
           {
             id: 1,
@@ -753,9 +777,9 @@ function Metric({ label, value, accent }: { label: string; value: string; accent
   );
 }
 
-function getPlanningBaseTime(stops: Array<{ source: Stop["source"]; time?: string }>): Date {
+function getPlanningBaseTime(stops: Array<{ time?: string }>): Date {
   const customTimes = stops
-    .filter((stop) => stop.source === "custom" && stop.time)
+    .filter((stop) => stop.time)
     .map((stop) => new Date(stop.time as string));
 
   if (customTimes.length === 0) {
@@ -767,8 +791,42 @@ function getPlanningBaseTime(stops: Array<{ source: Stop["source"]; time?: strin
   return new Date(earliest.getFullYear(), earliest.getMonth(), earliest.getDate());
 }
 
-function toOrsSeconds(value: string, base: Date): number {
-  return Math.max(0, Math.floor((new Date(value).getTime() - base.getTime()) / 1000));
+function toOrsDeadlineSeconds(value: string, base: Date): number {
+  return Math.floor((new Date(value).getTime() - base.getTime()) / 1000);
+}
+
+function buildTimeWindows({
+  deadlineSeconds,
+  serviceSeconds,
+  deadlineMode,
+}: {
+  deadlineSeconds: number | null;
+  serviceSeconds: number;
+  deadlineMode: "latest-arrival" | "service-complete";
+}): [number, number][] | undefined {
+  if (deadlineSeconds == null || !Number.isFinite(deadlineSeconds)) return undefined;
+
+  const end = deadlineMode === "service-complete"
+    ? deadlineSeconds - serviceSeconds
+    : deadlineSeconds;
+
+  if (!Number.isFinite(end) || end <= 0) return undefined;
+  if (end <= 0) return undefined;
+
+  return [[0, Math.floor(end)]];
+}
+
+function buildSingleTimeWindow({
+  deadlineSeconds,
+  serviceSeconds,
+  deadlineMode,
+}: {
+  deadlineSeconds: number | null;
+  serviceSeconds: number;
+  deadlineMode: "latest-arrival" | "service-complete";
+}): [number, number] | undefined {
+  const windows = buildTimeWindows({ deadlineSeconds, serviceSeconds, deadlineMode });
+  return windows?.[0];
 }
 
 async function readOrsErrorMessage(response: Response): Promise<string> {

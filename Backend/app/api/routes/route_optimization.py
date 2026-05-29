@@ -16,6 +16,29 @@ logger = logging.getLogger(__name__)
 ORS_OPTIMIZATION_URL = "https://api.openrouteservice.org/optimization"
 
 
+def _log_jobs(forwarded: dict) -> None:
+    for job in forwarded.get("jobs", []):
+        logger.info(
+            "ORS job: id=%s description=%s location=%s service=%s time_windows=%s",
+            job.get("id"),
+            job.get("description"),
+            job.get("location"),
+            job.get("service"),
+            job.get("time_windows"),
+        )
+
+
+def _job_description_by_id(forwarded: dict) -> dict[int, str | None]:
+    descriptions: dict[int, str | None] = {}
+    for job in forwarded.get("jobs", []):
+        try:
+            job_id = int(job.get("id"))
+        except (TypeError, ValueError):
+            continue
+        descriptions[job_id] = job.get("description")
+    return descriptions
+
+
 @router.post("/optimize")
 async def optimize_route(
     payload: RouteOptimizationRequest,
@@ -35,6 +58,7 @@ async def optimize_route(
     # Log the exact payload we'll forward to ORS to aid debugging of 400 errors.
     try:
         forwarded = payload.model_dump(mode="json")
+        _log_jobs(forwarded)
         logger.info(
             "Forwarding ORS optimization payload:\n%s", json.dumps(forwarded, indent=2)
         )
@@ -83,6 +107,45 @@ async def optimize_route(
         logger.exception("Failed to normalize time windows")
 
     try:
+        for job in forwarded.get("jobs", []):
+            tw = job.get("time_windows")
+            if tw is None:
+                continue
+            for window in tw:
+                if not isinstance(window, list) or len(window) != 2:
+                    raise ValueError(
+                        "Each job time window must contain exactly two values."
+                    )
+                start, end = int(window[0]), int(window[1])
+                if start < 0 or end < 0:
+                    raise ValueError(
+                        "Job time windows must not contain negative values."
+                    )
+                if end <= start:
+                    raise ValueError("Job time window end must be greater than start.")
+                if start == 0 and end == 0:
+                    raise ValueError("Job time windows must not be [0, 0].")
+
+        for vehicle in forwarded.get("vehicles", []):
+            tw = vehicle.get("time_window")
+            if not isinstance(tw, list) or len(tw) != 2:
+                raise ValueError("Vehicle time_window must contain exactly two values.")
+            start, end = int(tw[0]), int(tw[1])
+            if start < 0 or end < 0:
+                raise ValueError(
+                    "Vehicle time_window must not contain negative values."
+                )
+            if end <= start:
+                raise ValueError("Vehicle time_window end must be greater than start.")
+            if start == 0 and end == 0:
+                raise ValueError("Vehicle time_window must not be [0, 0].")
+    except ValueError as exc:
+        logger.error("Invalid ORS optimization payload: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+
+    try:
         async with httpx.AsyncClient(timeout=60.0) as client:
             response = await client.post(
                 ORS_OPTIMIZATION_URL,
@@ -129,5 +192,20 @@ async def optimize_route(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="OpenRouteService returned an invalid response.",
         ) from exc
+
+    if isinstance(data, dict):
+        unassigned = data.get("unassigned")
+        if isinstance(unassigned, list) and unassigned:
+            descriptions = _job_description_by_id(forwarded)
+            for item in unassigned:
+                try:
+                    job_id = int(item.get("id"))
+                except (TypeError, ValueError, AttributeError):
+                    job_id = None
+                logger.warning(
+                    "ORS unassigned job: id=%s description=%s",
+                    job_id,
+                    descriptions.get(job_id) if job_id is not None else None,
+                )
 
     return data
