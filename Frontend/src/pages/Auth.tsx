@@ -6,6 +6,8 @@ import { useAuth, AppRole } from "@/lib/auth";
 import { toast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LoadMindLoader } from "@/components/LoadMindLoader";
+import { PasswordPolicyChecklist } from "@/components/PasswordPolicyChecklist";
+import { getPasswordPolicyChecks, getPasswordPolicyError, PASSWORD_POLICY_TEXT } from "@/lib/password-policy";
 import {
   Dialog,
   DialogClose,
@@ -35,6 +37,7 @@ const Auth = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberLogin, setRememberLogin] = useState(false);
   const [busy, setBusy] = useState(false);
+  const passwordChecks = getPasswordPolicyChecks(password);
 
   useEffect(() => {
     clearLegacyRememberedCredentials();
@@ -96,6 +99,18 @@ const Auth = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (mode === "signup") {
+      const passwordPolicyError = getPasswordPolicyError(password);
+      if (passwordPolicyError) {
+        toast({
+          title: "Password is too weak",
+          description: PASSWORD_POLICY_TEXT,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     setBusy(true);
     try {
       if (mode === "signup") {
@@ -262,7 +277,7 @@ const Auth = () => {
                     <input
                       type={showPassword ? "text" : "password"}
                       required
-                      minLength={6}
+                      minLength={mode === "signup" ? 10 : undefined}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       autoComplete={mode === "signin" ? "current-password" : "new-password"}
@@ -279,6 +294,12 @@ const Auth = () => {
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
                   </div>
+                  {mode === "signup" && (
+                    <PasswordPolicyChecklist
+                      hasMinLength={passwordChecks.hasMinLength}
+                      hasSpecialCharacter={passwordChecks.hasSpecialCharacter}
+                    />
+                  )}
                 </div>
                 {mode === "signin" && (
                   <label className="flex items-center gap-2 text-sm text-muted-foreground">
