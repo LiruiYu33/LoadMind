@@ -5,12 +5,8 @@ import { AddressAutocompleteInput } from "@/components/AddressAutocompleteInput"
 import { LocationPickerDialog } from "@/components/LocationPickerDialog";
 import { geocode, type LatLng } from "@/lib/geocode";
 import { geocodeLocation } from "@/lib/geo";
-import {
-  nearestNeighbor,
-  pathDistanceKm,
-  haversineKm,
-  type RoutePoint,
-} from "@/lib/optimizeRoute";
+import { haversineKm } from "@/lib/optimizeRoute";
+import { optimizeRoute } from "@/lib/loads-api";
 import {
   Truck,
   Plus,
@@ -24,6 +20,8 @@ import { toast } from "@/hooks/use-toast";
 
 const MAX_STOPS = 5;
 const AVG_SPEED_KMH = 80;
+const DEFAULT_CUSTOM_SERVICE_MINUTES = 10;
+const DEFAULT_TRUCK_END_HOURS = 72;
 
 type Vehicle = {
   id: string;
@@ -41,6 +39,8 @@ type Load = {
   origin: string;
   destination: string;
   load_type: string;
+  pickup_time: string;
+  dropoff_time: string;
   predicted_margin: number;
 };
 
@@ -49,15 +49,37 @@ type Stop = {
   label: string;
   source: "marketplace" | "custom";
   loadId?: string;
+  time?: string;
 };
 
 type OptimizedResult = {
-  ordered: (RoutePoint & { stopKey: string })[];
+  ordered: (ResolvedStop & { stopKey: string })[];
   totalKm: number;
   baselineKm: number;
   legsKm: number[];
   truckPos: LatLng;
   roadPath: [number, number][];
+};
+
+type ResolvedStop = {
+  label: string;
+  lat: number;
+  lng: number;
+  source: Stop["source"];
+  stopType: "job" | "end";
+  time?: string;
+  serviceMinutes?: number;
+};
+
+type OrsOptimizationResponse = {
+  routes?: Array<{
+    steps?: Array<{
+      type: string;
+      id?: number;
+      arrival?: number;
+    }>;
+  }>;
+  unassigned?: Array<{ id?: number }>;
 };
 
 const hasGps = (vehicle: Pick<Vehicle, "lat" | "lng"> | null | undefined) => (
@@ -74,7 +96,9 @@ export default function RouteOptimization() {
   const [selectedTruckId, setSelectedTruckId] = useState<string | null>(null);
   const [stops, setStops] = useState<Stop[]>([]);
   const [endStop, setEndStop] = useState<string>("");
+  const [endStopTime, setEndStopTime] = useState("");
   const [customInput, setCustomInput] = useState("");
+  const [customTime, setCustomTime] = useState("");
   const [locationPicker, setLocationPicker] = useState<"custom" | "end" | null>(null);
   const [loadPickerId, setLoadPickerId] = useState<string>("");
   const [optimizing, setOptimizing] = useState(false);
@@ -123,7 +147,7 @@ export default function RouteOptimization() {
 
     supabase
       .from("loads")
-      .select("id,origin,destination,load_type,predicted_margin")
+      .select("id,origin,destination,load_type,pickup_time,dropoff_time,predicted_margin")
       .eq("status", "open")
       .order("match_score", { ascending: false })
       .then(({ data }) => setLoads((data ?? []) as Load[]));
@@ -134,15 +158,20 @@ export default function RouteOptimization() {
   const addCustomStop = () => {
     const name = customInput.trim();
     if (!name) return;
+    if (!customTime.trim()) {
+      toast({ title: "Add a time", description: "Custom stops need a scheduled arrival time." });
+      return;
+    }
     if (stops.length >= MAX_STOPS) {
       toast({ title: "Stop limit reached", description: `Max ${MAX_STOPS} stops.` });
       return;
     }
     setStops((s) => [
       ...s,
-      { key: `c-${Date.now()}`, label: name, source: "custom" },
+      { key: `c-${Date.now()}`, label: name, source: "custom", time: customTime },
     ]);
     setCustomInput("");
+    setCustomTime("");
     setResult(null);
   };
 
@@ -158,8 +187,8 @@ export default function RouteOptimization() {
     }
     setStops((s) => [
       ...s,
-      { key: `m-${load.id}-o-${Date.now()}`, label: load.origin, source: "marketplace", loadId: load.id },
-      { key: `m-${load.id}-d-${Date.now()}`, label: load.destination, source: "marketplace", loadId: load.id },
+      { key: `m-${load.id}-o-${Date.now()}`, label: load.origin, source: "marketplace", loadId: load.id, time: load.pickup_time },
+      { key: `m-${load.id}-d-${Date.now()}`, label: load.destination, source: "marketplace", loadId: load.id, time: load.dropoff_time },
     ]);
     setLoadPickerId("");
     setResult(null);
@@ -193,7 +222,7 @@ export default function RouteOptimization() {
     }
     setOptimizing(true);
     try {
-      const resolved: (RoutePoint & { stopKey: string })[] = [];
+      const resolvedStops: ResolvedStop[] = [];
       for (const s of stops) {
         const pt = await geocode(s.label);
         if (!pt) {
@@ -201,46 +230,124 @@ export default function RouteOptimization() {
             title: "Couldn't locate stop",
             description: `Try a more specific name for "${s.label}".`,
           });
-          setOptimizing(false);
           return;
         }
-        resolved.push({ ...pt, label: s.label, stopKey: s.key });
+        resolvedStops.push({
+          label: s.label,
+          lat: pt.lat,
+          lng: pt.lng,
+          source: s.source,
+          stopType: "job",
+          time: s.time,
+          serviceMinutes: s.source === "custom" ? DEFAULT_CUSTOM_SERVICE_MINUTES : 0,
+        });
       }
 
-      let endResolved: (RoutePoint & { stopKey: string }) | null = null;
+      let endResolved: ResolvedStop | null = null;
       if (endStop.trim()) {
+        if (!endStopTime.trim()) {
+          toast({ title: "Add an end stop time", description: "The fixed end stop needs a scheduled arrival time." });
+          return;
+        }
         const pt = await geocode(endStop.trim());
         if (!pt) {
           toast({
             title: "Couldn't locate end stop",
             description: `Try a more specific name for "${endStop}".`,
           });
-          setOptimizing(false);
           return;
         }
-        endResolved = { ...pt, label: endStop.trim(), stopKey: "end" };
+        endResolved = {
+          label: endStop.trim(),
+          lat: pt.lat,
+          lng: pt.lng,
+          source: "custom",
+          stopType: "end",
+          time: endStopTime,
+          serviceMinutes: 0,
+        };
       }
 
       const start: LatLng = { lat: truckPoint.lat, lng: truckPoint.lng };
-      const baselineSeq = endResolved ? [...resolved, endResolved] : resolved;
-      const baselineKm = pathDistanceKm(start, baselineSeq);
-      const nn = nearestNeighbor(start, resolved);
-      const finalOrdered = endResolved ? [...nn.ordered, endResolved] : nn.ordered;
+      const planningBase = getPlanningBaseTime(resolvedStops);
+      const jobs = resolvedStops.map((stop, index) => {
+        const latestArrival = stop.time ? toOrsSeconds(stop.time, planningBase) : DEFAULT_TRUCK_END_HOURS * 3600;
+        const serviceSeconds = (stop.serviceMinutes ?? 0) * 60;
+        const timeWindows: [number, number][] | undefined = stop.time
+          ? [[0, latestArrival]]
+          : undefined;
 
-      // Fetch real road route from OSRM public server
+        return {
+          id: index + 1,
+          description: stop.label,
+          location: [stop.lng, stop.lat] as [number, number],
+          service: serviceSeconds,
+          ...(timeWindows ? { time_windows: timeWindows } : {}),
+        };
+      });
+
+      const vehicleStart = [start.lng, start.lat] as [number, number];
+      const vehicleEnd = endResolved ? [endResolved.lng, endResolved.lat] as [number, number] : vehicleStart;
+      const vehicleWindow: [number, number] = [
+        0,
+        endResolved?.time
+          ? toOrsSeconds(endResolved.time, planningBase)
+          : DEFAULT_TRUCK_END_HOURS * 3600,
+      ];
+
+      const body = {
+        jobs,
+        vehicles: [
+          {
+            id: 1,
+            profile: "driving-hgv",
+            description: selectedTruck?.unit_id ?? "Truck 1",
+            start: vehicleStart,
+            end: vehicleEnd,
+            time_window: vehicleWindow,
+          },
+        ],
+      };
+
+      const data = await optimizeRoute(body);
+      const route = data.routes?.[0];
+      const orderedJobIds = route?.steps
+        ?.filter((step) => step.type === "job" && typeof step.id === "number")
+        .map((step) => step.id as number) ?? [];
+
+      const assignedStops = orderedJobIds
+        .map((jobId) => resolvedStops[jobId - 1])
+        .filter(Boolean);
+
+      if (!assignedStops.length && resolvedStops.length > 0) {
+        toast({
+          title: "Route cannot be fulfilled in time",
+          description: "The optimization service returned no feasible job order.",
+        });
+        return;
+      }
+
+      if (data.unassigned?.length) {
+        toast({
+          title: "Route cannot be fulfilled in time",
+          description: "The selected stop times are too restrictive. Relax one or more times and try again.",
+        });
+        return;
+      }
+
+      const finalOrdered = endResolved ? [...assignedStops, endResolved] : assignedStops;
+
+      const baselineKm = assignedStops.reduce((total, stop, index) => {
+        const previous = index === 0 ? start : resolvedStops[index - 1];
+        return total + haversineKm(previous, stop);
+      }, 0) + (endResolved && assignedStops.length > 0 ? haversineKm(assignedStops[assignedStops.length - 1], endResolved) : 0);
+
       let roadPath: [number, number][] = [
         [start.lat, start.lng],
         ...finalOrdered.map((p) => [p.lat, p.lng] as [number, number]),
       ];
-      // Compute legs incl. final leg to end (haversine fallback)
-      const lastPt: LatLng = nn.ordered.length ? nn.ordered[nn.ordered.length - 1] : start;
-      const fallbackLegs = [...nn.legsKm];
-      if (endResolved) {
-        
-        fallbackLegs.push(haversineKm(lastPt, endResolved));
-      }
-      let roadTotalKm = fallbackLegs.reduce((a, b) => a + b, 0);
-      let roadLegsKm = fallbackLegs;
+      let roadTotalKm = baselineKm;
+      const roadLegsKm = computeLegsKm(start, finalOrdered);
       try {
         const coords = [start, ...finalOrdered]
           .map((p) => `${p.lng},${p.lat}`)
@@ -256,9 +363,6 @@ export default function RouteOptimization() {
               ([lng, lat]: [number, number]) => [lat, lng] as [number, number],
             );
             roadTotalKm = route.distance / 1000;
-            if (route.legs) {
-              roadLegsKm = route.legs.map((l: { distance: number }) => l.distance / 1000);
-            }
           }
         }
       } catch {
@@ -269,12 +373,20 @@ export default function RouteOptimization() {
       }
 
       setResult({
-        ordered: finalOrdered as (RoutePoint & { stopKey: string })[],
+        ordered: finalOrdered.map((stop, index) => ({
+          ...stop,
+          stopKey: index < assignedStops.length ? String(index + 1) : "end",
+        })),
         legsKm: roadLegsKm,
         totalKm: roadTotalKm,
         baselineKm,
         truckPos: start,
         roadPath,
+      });
+    } catch (error) {
+      toast({
+        title: "Route cannot be fulfilled in time",
+        description: error instanceof Error ? error.message : "The selected stop times are too restrictive.",
       });
     } finally {
       setOptimizing(false);
@@ -295,6 +407,8 @@ export default function RouteOptimization() {
     () => result?.roadPath,
     [result],
   );
+
+  const timeMin = toDateTimeLocalValue(new Date());
 
   const fuelEff = Number(selectedTruck?.fuel_efficiency ?? 35); // L/100km default
   const estHours = result ? result.totalKm / AVG_SPEED_KMH : 0;
@@ -400,29 +514,39 @@ export default function RouteOptimization() {
 
             <div className="space-y-2">
               <div className="text-xs text-muted-foreground">Custom stop</div>
-              <div className="grid grid-cols-[minmax(0,1fr)_72px_68px] gap-2">
-                <AddressAutocompleteInput
-                  value={customInput}
-                  onChange={setCustomInput}
-                  onKeyDown={(e) => e.key === "Enter" && addCustomStop()}
-                  placeholder="City, State"
-                  showSuggestionIcon={false}
+              <div className="space-y-2">
+                <div className="grid grid-cols-[minmax(0,1fr)_72px_68px] gap-2">
+                  <AddressAutocompleteInput
+                    value={customInput}
+                    onChange={setCustomInput}
+                    onKeyDown={(e) => e.key === "Enter" && addCustomStop()}
+                    placeholder="City, State"
+                    showSuggestionIcon={false}
+                    className="surface-3 h-9 px-3 rounded-md text-sm min-w-0 outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setLocationPicker("custom")}
+                    className="h-9 w-[72px] shrink-0 rounded-md surface-3 text-sm font-semibold flex items-center justify-center gap-1.5 hover:lift-shadow"
+                  >
+                    <MapPin className="h-3.5 w-3.5" /> Map
+                  </button>
+                  <button
+                    onClick={addCustomStop}
+                    disabled={!customInput.trim() || !customTime.trim() || stops.length >= MAX_STOPS}
+                    className="h-9 w-[68px] shrink-0 rounded-md btn-action text-sm font-semibold flex items-center justify-center gap-1 disabled:opacity-40"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add
+                  </button>
+                </div>
+                <input
+                  type="datetime-local"
+                  value={customTime}
+                  onChange={(e) => setCustomTime(e.target.value)}
+                  min={timeMin}
                   className="surface-3 h-9 px-3 rounded-md text-sm min-w-0 outline-none"
+                  aria-label="Custom stop time"
                 />
-                <button
-                  type="button"
-                  onClick={() => setLocationPicker("custom")}
-                  className="h-9 w-[72px] shrink-0 rounded-md surface-3 text-sm font-semibold flex items-center justify-center gap-1.5 hover:lift-shadow"
-                >
-                  <MapPin className="h-3.5 w-3.5" /> Map
-                </button>
-                <button
-                  onClick={addCustomStop}
-                  disabled={!customInput.trim() || stops.length >= MAX_STOPS}
-                  className="h-9 w-[68px] shrink-0 rounded-md btn-action text-sm font-semibold flex items-center justify-center gap-1 disabled:opacity-40"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Add
-                </button>
               </div>
             </div>
 
@@ -431,7 +555,10 @@ export default function RouteOptimization() {
                 <li key={s.key} className="flex items-center gap-2 surface-3 rounded-md px-3 py-2">
                   <span className="text-xs text-muted-foreground font-mono-data w-5">{i + 1}</span>
                   <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span className="text-sm flex-1 truncate">{s.label}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm truncate">{s.label}</div>
+                    {s.time && <div className="text-[10px] text-muted-foreground">{s.time.replace("T", " ")}</div>}
+                  </div>
                   <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
                     {s.source}
                   </span>
@@ -447,6 +574,10 @@ export default function RouteOptimization() {
                 <li className="text-xs text-muted-foreground italic">No stops added yet.</li>
               )}
             </ul>
+
+            <p className="text-xs text-muted-foreground">
+              Custom stops must include a scheduled time. Marketplace stops stay flexible unless the ORS optimizer cannot fit them into the selected window.
+            </p>
           </section>
 
           <section className="surface-2 rounded-xl p-5 ghost-shadow space-y-3">
@@ -481,6 +612,17 @@ export default function RouteOptimization() {
                 <MapPin className="h-3.5 w-3.5" /> Map
               </button>
             </div>
+            <input
+              type="datetime-local"
+              value={endStopTime}
+              onChange={(e) => setEndStopTime(e.target.value)}
+              min={timeMin}
+              className="surface-3 h-9 w-full rounded-md px-3 text-sm outline-none"
+              aria-label="End stop time"
+            />
+            <p className="text-xs text-muted-foreground">
+              The end stop also needs a future arrival time so ORS can check the route against the deadline.
+            </p>
           </section>
 
           <LocationPickerDialog
@@ -609,4 +751,59 @@ function Metric({ label, value, accent }: { label: string; value: string; accent
       </div>
     </div>
   );
+}
+
+function getPlanningBaseTime(stops: Array<{ source: Stop["source"]; time?: string }>): Date {
+  const customTimes = stops
+    .filter((stop) => stop.source === "custom" && stop.time)
+    .map((stop) => new Date(stop.time as string));
+
+  if (customTimes.length === 0) {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  }
+
+  const earliest = customTimes.reduce((current, next) => (next < current ? next : current));
+  return new Date(earliest.getFullYear(), earliest.getMonth(), earliest.getDate());
+}
+
+function toOrsSeconds(value: string, base: Date): number {
+  return Math.max(0, Math.floor((new Date(value).getTime() - base.getTime()) / 1000));
+}
+
+async function readOrsErrorMessage(response: Response): Promise<string> {
+  try {
+    const body = await response.json();
+    if (typeof body?.error?.message === "string") {
+      return body.error.message;
+    }
+    if (typeof body?.message === "string") {
+      return body.message;
+    }
+  } catch {
+    // Fall back to status text below.
+  }
+
+  return response.statusText || `OpenRouteService request failed with status ${response.status}`;
+}
+
+function computeLegsKm(start: LatLng, stops: Array<{ lat: number; lng: number }>): number[] {
+  const legs: number[] = [];
+  let previous = start;
+
+  for (const stop of stops) {
+    legs.push(haversineKm(previous, stop));
+    previous = stop;
+  }
+
+  return legs;
+}
+
+function toDateTimeLocalValue(date: Date): string {
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  const hours = `${date.getHours()}`.padStart(2, "0");
+  const minutes = `${date.getMinutes()}`.padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
