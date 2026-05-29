@@ -142,6 +142,16 @@ export type RouteOptimizationResponse = {
   unassigned?: Array<{ id?: number }>;
 };
 
+export type LoadRouteMetricsInput = {
+  origin: string;
+  destination: string;
+};
+
+export type LoadRouteMetrics = {
+  distance_km: number;
+  duration_seconds: number;
+};
+
 export async function suggestPrice(payload: PriceSuggestionInput): Promise<PriceSuggestion> {
   return apiRequest<PriceSuggestion>(`/api/v1/price-insights/suggest`, {
     method: "POST",
@@ -151,6 +161,13 @@ export async function suggestPrice(payload: PriceSuggestionInput): Promise<Price
 
 export async function optimizeRoute(payload: RouteOptimizationInput): Promise<RouteOptimizationResponse> {
   return apiRequest<RouteOptimizationResponse>(`/api/v1/route-optimization/optimize`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getLoadRouteMetrics(payload: LoadRouteMetricsInput): Promise<LoadRouteMetrics> {
+  return apiRequest<LoadRouteMetrics>(`/api/v1/load-insights/route-metrics`, {
     method: "POST",
     body: JSON.stringify(payload),
   });
