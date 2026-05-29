@@ -295,6 +295,7 @@ Check that:
 
 - the backend is running on `http://localhost:8000`,
 - `Frontend/.env` contains `VITE_BACKEND_URL=http://localhost:8000`,
+- `Backend/.env` contains `ORS_API_KEY=your-openrouteservice-api-key`,
 - the backend `FRONTEND_URL` matches the Vite dev server URL.
 
 ### GitLab job is stuck
