@@ -1,0 +1,23 @@
+  stages:
+    - test
+
+  default:
+    tags:
+      - fit2107
+
+  cache:
+    key: "$CI_COMMIT_REF_SLUG"
+    paths:
+      - Backend/.cache/pip/
+
+  backend_check:
+    stage: test
+    timeout: 20m
+    variables:
+      PIP_CACHE_DIR: "$CI_PROJECT_DIR/Backend/.cache/pip"
+    script:
+      - cd Backend
+      - python3.12 --version
+      - python3.12 -m pip --version
+      - python3.12 -m pip install -e .
+      - python3.12 -m py_compile app/main.py app/api/schemas/load_route_metrics.py app/api/schemas/loads.py app/api/schemas/price_insights.py app/api/schemas/route_optimization.py
