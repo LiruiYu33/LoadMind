@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { assignLoad, listOpenLoads } from "@/lib/loads-api";
+import { assignLoad, getLoadRouteMetrics, listOpenLoads, type LoadRouteMetrics } from "@/lib/loads-api";
 import { CheckCircle2, ArrowRight, Search, MapPin, Gauge, Truck, ChevronDown, Loader2, Navigation, type LucideIcon } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { LoadRouteMap } from "@/components/LoadRouteMap";
@@ -70,6 +70,8 @@ type PickupSortLocation = {
   coords: Coordinates;
 };
 
+type LoadMetricsState = Record<string, LoadRouteMetrics | null>;
+
 export default function AIMatcher() {
   const { user } = useAuth();
   const [loads, setLoads] = useState<Load[]>([]);
@@ -85,6 +87,8 @@ export default function AIMatcher() {
   const [pickupSortPickerOpen, setPickupSortPickerOpen] = useState(false);
   const [browserLocationLoading, setBrowserLocationLoading] = useState(false);
   const [pickupCoordsByLoad, setPickupCoordsByLoad] = useState<Record<string, Coordinates | null>>({});
+  const [routeMetricsByLoad, setRouteMetricsByLoad] = useState<LoadMetricsState>({});
+  const [routeMetricsLoading, setRouteMetricsLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -133,6 +137,42 @@ export default function AIMatcher() {
       .in("status", ["scheduled", "in_transit"])
       .then(({ data }) => setAssignedLoads((data ?? []) as AssignedLoad[]));
   }, [user]);
+
+  useEffect(() => {
+    if (loads.length === 0) {
+      setRouteMetricsByLoad({});
+      setRouteMetricsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setRouteMetricsLoading(true);
+
+    Promise.allSettled(
+      loads.map(async (load) => {
+        const origin = formatLoadLocation(load.route_origin || load.origin);
+        const destination = formatLoadLocation(load.route_destination || load.destination);
+        const metrics = await getLoadRouteMetrics({ origin, destination });
+        return [load.id, metrics] as const;
+      }),
+    ).then((results) => {
+      if (cancelled) return;
+
+      const next: LoadMetricsState = {};
+      results.forEach((result, index) => {
+        const loadId = loads[index]?.id;
+        if (!loadId) return;
+        next[loadId] = result.status === "fulfilled" ? result.value[1] : null;
+      });
+
+      setRouteMetricsByLoad(next);
+      setRouteMetricsLoading(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [loads]);
 
   const assignedLoadsByVehicle = useMemo(() => {
     return assignedLoads.reduce<Record<string, AssignedLoad[]>>((acc, load) => {
@@ -486,7 +526,7 @@ export default function AIMatcher() {
               </div>
 
               {/* Full load details */}
-              <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+              <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4 pt-1">
                 <Detail icon={MapPin} label="Pickup" value={displayOrigin} />
                 <Detail
                   icon={Gauge}
@@ -498,6 +538,11 @@ export default function AIMatcher() {
                   icon={Gauge}
                   label="Dropoff Time"
                   value={formatDateTime(l.dropoff_time)}
+                />
+                <Detail
+                  icon={Navigation}
+                  label="Route Distance / Duration"
+                  value={formatRouteMetrics(routeMetricsByLoad[l.id], routeMetricsLoading)}
                 />
               </div>
 
@@ -663,6 +708,23 @@ function formatDateTime(value: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatRouteMetrics(metrics: LoadRouteMetrics | null | undefined, loading: boolean) {
+  if (loading) return "Calculating...";
+  if (!metrics) return "Unavailable";
+
+  const duration = formatDuration(metrics.duration_seconds);
+  return `${metrics.distance_km.toFixed(0)} km · ${duration}`;
+}
+
+function formatDuration(seconds: number) {
+  const totalMinutes = Math.max(0, Math.round(seconds / 60));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours <= 0) return `${minutes}m`;
+  return `${hours}h ${String(minutes).padStart(2, "0")}m`;
 }
 
 function formatLoadLocation(value: string) {
