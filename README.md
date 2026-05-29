@@ -25,6 +25,30 @@ The product is designed around the common logistics workflow where a shipper cre
 - Small route maps on load cards showing pickup and delivery points.
 - Backend API for load creation, load cancellation/restoration, load assignment, pickup confirmation, delivery confirmation, and price insight suggestions.
 
+## Product Screenshots
+
+These screenshots show selected LoadMind workflows for both carrier and shipper users. They are not exhaustive; run the frontend and backend locally to explore the full product experience.
+
+| Sign in | Carrier AI Load Matcher |
+| --- | --- |
+| <img src="ScreenShots/01-login.png" alt="LoadMind sign in page" width="420"> | <img src="ScreenShots/02-carrier-ai-load-matcher.png" alt="Carrier AI Load Matcher page" width="420"> |
+
+| Carrier Fleet Management | Carrier Route Optimizer |
+| --- | --- |
+| <img src="ScreenShots/03-carrier-fleet-management.png" alt="Carrier fleet management page" width="420"> | <img src="ScreenShots/04-carrier-route-optimizer.png" alt="Carrier route optimizer page" width="420"> |
+
+| Shipper Dashboard | Shipper Post Shipment |
+| --- | --- |
+| <img src="ScreenShots/05-shipper-dashboard.png" alt="Shipper dashboard page" width="420"> | <img src="ScreenShots/06-shipper-post-shipment.png" alt="Shipper post shipment page" width="420"> |
+
+| Shipper Price Insights | Shipper Shipment History |
+| --- | --- |
+| <img src="ScreenShots/07-shipper-price-insights.png" alt="Shipper price insights section" width="420"> | <img src="ScreenShots/08-shipper-shipment-history.png" alt="Shipper shipment history page" width="420"> |
+
+| Register Vehicle Modal |
+| --- |
+| <img src="ScreenShots/09-register-vehicle-modal.png" alt="Register vehicle modal" width="420"> |
+
 ## Tech Stack
 
 ### Frontend
@@ -53,6 +77,7 @@ The product is designed around the common logistics workflow where a shipper cre
 LoadMind/
 ├── Backend/          # FastAPI backend service
 ├── Frontend/         # React/Vite frontend application
+├── ScreenShots/      # README product screenshots rendered by GitLab
 ├── .gitlab-ci.yml    # Current GitLab CI configuration
 ├── .gitignore
 └── README.md
