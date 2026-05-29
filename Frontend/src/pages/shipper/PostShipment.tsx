@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth";
-import { createLoad, suggestPrice } from "@/lib/loads-api";
+import { createLoad, suggestPrice, getLoadRouteMetrics } from "@/lib/loads-api";
 import { LocationPickerDialog } from "@/components/LocationPickerDialog";
 import { AddressAutocompleteInput } from "@/components/AddressAutocompleteInput";
 import { LoadMindLoader } from "@/components/LoadMindLoader";
@@ -43,6 +43,7 @@ export default function PostShipment() {
   const [suggestionReason, setSuggestionReason] = useState<string | null>(null);
   const [suggestionError, setSuggestionError] = useState<string | null>(null);
   const [suggestionLoading, setSuggestionLoading] = useState(false);
+  const [routeMetricsLoading, setRouteMetricsLoading] = useState(false);
   const [editedPrice, setEditedPrice] = useState<string>("");
   const [priceAccepted, setPriceAccepted] = useState(false);
 
@@ -83,7 +84,40 @@ export default function PostShipment() {
 
       return next;
     });
+
+    // If origin/destination present, fetch route metrics to compute realistic earliest dropoff
+    if (form.origin && form.destination && value) {
+      void fetchAndApplyRouteDuration(form.origin, form.destination, value);
+    }
   };
+
+  async function fetchAndApplyRouteDuration(origin: string, destination: string, pickupIso?: string) {
+    if (!origin || !destination) return;
+    if (routeMetricsLoading) return;
+    setRouteMetricsLoading(true);
+    try {
+      const m = await getLoadRouteMetrics({ origin, destination });
+      const hours = m.duration_seconds / 3600;
+      setActualDurationHours(hours);
+      setPureDrivingHours(hours);
+      setDistanceMiles(m.distance_km * 0.621371);
+
+      const pickup = pickupIso ? new Date(pickupIso) : new Date(form.pickupTime);
+      if (Number.isNaN(pickup.getTime())) return;
+      const earliest = getEarliestDropoffTime(pickup, hours);
+      setForm((cur) => {
+        const currentDropoff = new Date(cur.dropoffTime);
+        if (!cur.dropoffTime || Number.isNaN(currentDropoff.getTime()) || currentDropoff < earliest) {
+          return { ...cur, dropoffTime: toDateTimeLocalValue(earliest) };
+        }
+        return cur;
+      });
+    } catch (err) {
+      // keep existing fallback behavior (MIN_DROP_OFF_BUFFER_MINUTES)
+    } finally {
+      setRouteMetricsLoading(false);
+    }
+  }
 
   const setPositiveIntegerNumber = (k: keyof typeof form, max?: number) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -295,6 +329,19 @@ export default function PostShipment() {
     ? getEarliestDropoffTime(new Date(form.pickupTime), actualDurationHours)
     : null;
   const dropoffMinValue = dropoffMinDate ? toDateTimeLocalValue(dropoffMinDate) : pickupMinValue;
+
+  // Re-fetch route metrics when origin or destination change (debounced)
+  useEffect(() => {
+    if (!form.pickupTime) return;
+    if (!form.origin || !form.destination) return;
+
+    const t = setTimeout(() => {
+      void fetchAndApplyRouteDuration(form.origin, form.destination);
+    }, 300);
+
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.origin, form.destination]);
 
   return (
     <div className="p-6 lg:p-10">
