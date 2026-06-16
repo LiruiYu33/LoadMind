@@ -38,3 +38,8 @@ Backend/app/core/__pycache__/
 Backend/app/integrations/supabase/__pycache__/
 Backend/backend.egg-info/
 Frontend/package-lock.json
+
+# Environment variables
+.env
+.env.local
+.env.*.local
